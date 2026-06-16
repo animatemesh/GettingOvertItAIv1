@@ -34,9 +34,9 @@ export const PLANE_Z = 0;
 /* -------------------------------------------------------------------------- */
 
 export const CAULDRON = {
-  /** Base weight. Lighter than a true GOI pot so the climb is more forgiving
-   *  and the hammer press has enough authority to scoot/vault the body. */
-  mass: 6.5,
+  /** Base weight. Heavier = calmer/weightier movement, lighter = punchier.
+   *  Pair this with STEERING.kp to tune overall movement strength. */
+  mass: 7.5,
   /** Mid friction at the base so it grips rests but can still slide off. */
   friction: 0.7,
   restitution: 0.0,
@@ -79,8 +79,9 @@ export const HAMMER = {
 /* -------------------------------------------------------------------------- */
 
 export const STEERING = {
-  /** Proportional gain pulling the head toward the cursor target. */
-  kp: 360.0,
+  /** Proportional gain = how hard the head presses = overall push/vault
+   *  strength. THE main "make movement stronger/weaker" knob. */
+  kp: 260.0,
   /** Derivative gain damping the head velocity (prevents jitter/overshoot). */
   kd: 34.0,
   /** Maximum steering force magnitude so the hammer can't teleport. */
@@ -105,7 +106,7 @@ export const STEERING = {
    * pushing real authority. Free-air levitation is prevented by the force pair
    * (`bodyReaction`), NOT by clamping reach, so this can safely exceed reach.
    */
-  maxReach: HAMMER.handleLength * 1.7,
+  maxReach: HAMMER.handleLength * 1.5,
   anchorOverreach: 0.6,
   /**
    * Inner radius of the reach disc (a small dead zone): the head can't be

@@ -219,12 +219,13 @@ function hookClimb(stepX0, stepTop) {
   };
 }
 
-const FINAL = { ...base, cauldronMass: 6.5, kp: 360, kd: 34, reachMul: 1.7 };
-
 const variants = [
-  { name: 'FINAL m6.5 kp360 reach1.7', p: FINAL },
-  { name: 'alt  m6   kp380 reach1.8', p: { ...base, cauldronMass: 6, kp: 380, kd: 34, reachMul: 1.8 } },
-];
+    { name: 'CURRENT m6.5 kp360 reach1.7', p: { ...base, cauldronMass: 6.5, kp: 360, kd: 34, reachMul: 1.7 } },
+      { name: 'soft1   m7.5 kp260 reach1.5', p: { ...base, cauldronMass: 7.5, kp: 260, kd: 34, reachMul: 1.5 } },
+        { name: 'soft2   m8   kp230 reach1.4', p: { ...base, cauldronMass: 8, kp: 230, kd: 36, reachMul: 1.4 } },
+          { name: 'soft3   m9   kp210 reach1.4', p: { ...base, cauldronMass: 9, kp: 210, kd: 36, reachMul: 1.4 } },
+          ];
+]
 
 for (const v of variants) {
   console.log(`\n--- ${v.name} ---`);
