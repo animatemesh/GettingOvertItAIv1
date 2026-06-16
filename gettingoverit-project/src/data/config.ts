@@ -51,7 +51,7 @@ export const CAULDRON = {
   /** Raise/lower the whole cauldron collider relative to the body origin. */
   colliderOffsetY: 1.1,
   /** Height of the hammer grip pivot above the body origin. */
-  gripOffsetY: 0.95,
+  gripOffsetY: 0.9,
 } as const;
 
 export const HAMMER = {
@@ -181,14 +181,19 @@ export const IK = {
 export const MODEL = {
   /** Uniform scale applied to the loaded model to bring it to game scale. */
   scale: 1.7,
+  /** Extra outward offset applied to the clavicles so the shoulders read wider. */
+  shoulderSpreadX: 0,
   /** Vertical offset so the legless torso sits down inside the pot. */
   yOffset: -0.25,
   /** Yaw (radians) to face the model toward the camera (+Z). */
   faceRotationY: 0,
   /** Grip points on the hammer handle (hammer-local; handle is +Y, 0..length).
    *  Spread a little so the two hands sit apart on the shaft, not overlapping. */
-  rightGripLocal: { x: 0.04, y: 0.05, z: 0.0 },
-  leftGripLocal: { x: -0.04, y: 0.45, z: 0.0 },
+  rightGripLocal: { x: 0.04, y: -0.02, z: 0.0 },
+  leftGripLocal: { x: -0.04, y: 0.68, z: 0.0 },
+  /** Extend the effective hand target a bit past the finger root so the hammer
+   *  visually sits nearer the end of the hand instead of the wrist/palm. */
+  handGripExtension: 0.11,
   /** Elbow pole bias added to the right hand target (world). Pushes the elbow
    *  DOWN and OUT (and slightly forward) so the forearm clears the torso/chest
    *  instead of folding into it. */

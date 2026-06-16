@@ -22,11 +22,17 @@
 import { Quaternion, Vector3 } from 'three';
 import type { Bone } from 'three';
 
+interface ArmIKOptions {
+  lockUpper?: boolean;
+}
+
 export class ArmIK {
   private readonly upper: Bone;
   private readonly lower: Bone;
   private readonly hand: Bone;
   private readonly grip: Bone;
+  private readonly gripExtension: number;
+  private readonly lockUpper: boolean;
 
   private inited = false;
   private L1 = 0; // upper -> lower (world rest length)
@@ -52,11 +58,13 @@ export class ArmIK {
   private readonly qParent = new Quaternion();
   private readonly qParentInv = new Quaternion();
 
-  constructor(upper: Bone, lower: Bone, hand: Bone, grip?: Bone) {
+  constructor(upper: Bone, lower: Bone, hand: Bone, grip?: Bone, gripExtension = 0, options: ArmIKOptions = {}) {
     this.upper = upper;
     this.lower = lower;
     this.hand = hand;
     this.grip = grip ?? hand;
+    this.gripExtension = Math.max(0, gripExtension);
+    this.lockUpper = Boolean(options.lockUpper);
   }
 
   /** Measure rest lengths + bind forward axes once the rig is in the scene. */
@@ -67,7 +75,7 @@ export class ArmIK {
     this.grip.getWorldPosition(this.pHand);
 
     this.L1 = Math.max(this.pUpper.distanceTo(this.pLower), 1e-4);
-    this.L2 = Math.max(this.pLower.distanceTo(this.pHand), 1e-4);
+    this.L2 = Math.max(this.pLower.distanceTo(this.pHand) + this.gripExtension, 1e-4);
 
     // Bind forward = direction toward child in each bone's LOCAL space.
     // (fwdLower is taken from the direct child `hand`, not `grip`, since
@@ -92,6 +100,18 @@ export class ArmIK {
    */
   solve(target: Vector3, pole: Vector3): void {
     if (!this.inited) this.init();
+
+    if (this.lockUpper) {
+      this.upper.quaternion.copy(this.bindUpperQuat);
+      this.upper.updateMatrix();
+      this.upper.updateWorldMatrix(false, true);
+      this.lower.getWorldPosition(this.pLower);
+      this.dir.subVectors(target, this.pLower);
+      if (this.dir.lengthSq() < 1e-8) return;
+      this.dir.normalize();
+      this.aim(this.lower, this.fwdLower, this.dir);
+      return;
+    }
 
     this.upper.getWorldPosition(this.pUpper);
 

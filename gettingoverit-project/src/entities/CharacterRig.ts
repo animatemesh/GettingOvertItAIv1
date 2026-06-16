@@ -45,11 +45,13 @@ export class CharacterRig {
     root.scale.setScalar(MODEL.scale);
     root.position.y = MODEL.yOffset;
     root.rotation.y = MODEL.faceRotationY;
+    this.widenShoulders();
 
-    // Drive the wrist bones directly. This keeps the arm chain much more
-    // stable than targeting finger roots on this specific rig.
-    this.rightArm = this.makeArm('upperarm_r', 'lowerarm_r', 'hand_r');
-    this.leftArm = this.makeArm('upperarm_l', 'lowerarm_l', 'hand_l');
+    // Drive the hands so the target lands out at the finger root instead of
+    // the wrist, which makes the hammer visually sit in the hand rather than
+    // being glued to the wrist joint.
+    this.rightArm = this.makeArm('upperarm_r', 'lowerarm_r', 'hand_r', 'middle_01_r');
+    this.leftArm = this.makeArm('upperarm_l', 'lowerarm_l', 'hand_l', 'middle_01_l');
 
     this.breast = new BreastPhysics(root, {
       boneNames: BREAST.boneNames as unknown as string[],
@@ -77,7 +79,18 @@ export class CharacterRig {
     if (grip && !g) {
       console.warn(`CharacterRig: missing grip bone ${grip}, falling back to ${hand}`);
     }
-    return new ArmIK(u, l, h, g);
+    return new ArmIK(u, l, h, g, MODEL.handGripExtension, { lockUpper: true });
+  }
+
+  private widenShoulders(): void {
+    const left = this.bones.get('clavicle_l');
+    const right = this.bones.get('clavicle_r');
+    if (!left || !right) return;
+
+    left.position.x += MODEL.shoulderSpreadX;
+    right.position.x -= MODEL.shoulderSpreadX;
+    left.updateMatrix();
+    right.updateMatrix();
   }
 
   /** Pose arms to the hammer grips and advance breast secondary motion. */
