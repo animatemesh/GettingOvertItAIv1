@@ -105,7 +105,8 @@ export class Player {
 
     const handleCol = RAPIER.ColliderDesc.capsule(this.getHandleHalfHeight(this.currentReach), HAMMER.handleRadius)
       .setTranslation(0, this.currentReach * 0.5, 0)
-      // Let the shaft glance off geometry so the head remains the primary tool.
+      // Make the shaft non-solid so only the head can brace on terrain.
+      .setSensor(true)
       .setFriction(0.08)
       .setMass(Math.max(HAMMER.mass - HAMMER.headMass, 0.1))
       .setCollisionGroups(PLAYER_GROUPS)
