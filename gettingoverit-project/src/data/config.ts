@@ -50,7 +50,8 @@ export const CAULDRON = {
   halfHeight: 0.7,
   /** Raise/lower the whole cauldron collider relative to the body origin. */
   colliderOffsetY: 1.1,
-  /** Height of the hammer grip pivot above the body origin. */
+  /** Height of the hammer grip pivot above the body origin.
+   *  Lower this to bring the hammer/shaft closer to the body. */
   gripOffsetY: 0.9,
 } as const;
 
@@ -68,8 +69,8 @@ export const HAMMER = {
   handleLength: 2.4,
   /** Visible shaft kept behind the grip so the handle does not collapse visually. */
   rearVisualLength: 0.72,
-  /** Handle radius (thin shaft). */
-  handleRadius: 0.07,
+  /** Handle radius. Increase this to make the shaft visually/physically thicker. */
+  handleRadius: 0.1,
   /** Half-extents of the blocky Yosemite-style hammer head. */
   headHalfExtents: { x: 0.42, y: 0.26, z: 0.26 },
 } as const;
