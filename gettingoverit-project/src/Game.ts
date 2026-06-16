@@ -17,7 +17,17 @@ import { LevelBuilder } from './world/LevelBuilder';
 import { Player } from './entities/Player';
 import { HammerController } from './systems/HammerController';
 import { PhysicsManager } from './systems/PhysicsManager';
+import { SlamVfx } from './systems/SlamVfx';
+import { AbilityController } from './systems/AbilityController';
+import { HAMMERS, HAMMER_ORDER, type HammerId } from './data/hammers';
+import { loadProgression, saveProgression, type Progression } from './data/progressionStore';
 import { Hud } from './ui/Hud';
+
+/** Head speed (m/s) at impact that counts as a ground slam. */
+const SLAM_SPEED = 3.5;
+/** Minimum seconds between two counted slams (debounce). */
+const SLAM_COOLDOWN = 0.18;
+const HAMMER_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 import type { ClimbMap } from './data/mapData';
 import { loadEditableMap } from './data/mapStore';
 import {
@@ -41,11 +51,19 @@ export class Game {
   private player!: Player;
   private controller!: HammerController;
   private physics!: PhysicsManager;
+  private vfx!: SlamVfx;
+  private abilities!: AbilityController;
+  private progression: Progression = loadProgression();
+  private slams = 0;
+  private slamCooldown = 0;
+  private preStepHeadSpeed = 0;
+  private readonly slamPos = new THREE.Vector3();
   private map!: ClimbMap;
   private settings: GameSettings = loadGameSettings();
   private scoreboard: ScoreboardState = loadLocalScoreboard();
   private running = false;
   private menuOpen = false;
+  private shopOpen = false;
   private elapsedMs = 0;
   private finishedTimeMs: number | null = null;
   private scoreSubmittedForRun = false;
@@ -66,6 +84,10 @@ export class Game {
       onCloseMenu: () => this.setMenuOpen(false),
       onSubmitScore: () => this.submitCurrentScore(),
       onSettingChange: (key, value) => this.updateSetting(key, value),
+      onToggleShop: () => this.setShopOpen(!this.shopOpen),
+      onCloseShop: () => this.setShopOpen(false),
+      onBuyHammer: (id) => this.buyHammer(id),
+      onEquipHammer: (id) => this.equipHammer(id),
     }, this.settings);
     this.hud.setScoreboard(
       this.scoreboard.visitCount,
@@ -123,6 +145,22 @@ export class Game {
       isTerrain: (handle) => level.terrainHandles.has(handle),
     });
 
+    // Slam VFX + hammer abilities (LMB specials, switched with number keys).
+    this.vfx = new SlamVfx(this.engine.scene);
+    this.abilities = new AbilityController({
+      engine: this.engine,
+      world: this.engine.world,
+      scene: this.engine.scene,
+      camera: this.engine.camera,
+      domElement: this.engine.renderer.domElement,
+      player: this.player,
+      vfx: this.vfx,
+      isTerrain: (handle) => level.terrainHandles.has(handle),
+      onHammerChange: (kind) => this.hud.setHammer(kind.name, kind.ability),
+    });
+    this.equipHammer('basic');
+    this.syncProgressionHud();
+
     this.applySettings();
     this.refreshHud();
     this.running = true;
@@ -132,7 +170,7 @@ export class Game {
   private frame = (): void => {
     if (!this.running) return;
 
-    if (this.menuOpen) {
+    if (this.menuOpen || this.shopOpen) {
       this.engine.syncClock();
       this.engine.render();
       requestAnimationFrame(this.frame);
@@ -140,12 +178,21 @@ export class Game {
     }
 
     const frameDt = this.engine.update({
-      beforeStep: (dt) => this.controller.update(dt),
-      afterStep: (dt, eventQueue) => this.physics.update(dt, eventQueue),
+      beforeStep: (dt) => {
+        this.controller.update(dt);
+        // Capture the head's approach speed before the step resolves contacts.
+        this.preStepHeadSpeed = this.player.headSpeed();
+      },
+      afterStep: (dt, eventQueue) => {
+        this.physics.update(dt, eventQueue);
+        this.checkSlam(dt);
+      },
     });
 
     // Visual + camera pass (once per rendered frame).
     this.player.update(frameDt);
+    this.vfx.update(frameDt);
+    this.abilities.update(frameDt);
     if (this.finishedTimeMs == null) {
       this.elapsedMs += frameDt * 1000;
     }
@@ -162,6 +209,29 @@ export class Game {
     this.engine.render();
     requestAnimationFrame(this.frame);
   };
+
+  /** Award a run slam + permanent coin when the head slams terrain hard. */
+  private checkSlam(dt: number): void {
+    if (this.slamCooldown > 0) this.slamCooldown -= dt;
+    if (!this.physics.impactStarted || this.slamCooldown > 0) return;
+    if (this.preStepHeadSpeed < SLAM_SPEED) return;
+
+    this.slams += 1;
+    this.progression.coins += 1;
+    saveProgression(this.progression);
+    this.syncProgressionHud();
+
+    this.player.headWorldPosition(this.slamPos);
+    this.vfx.burst(
+      this.slamPos.x,
+      this.slamPos.y,
+      this.slamPos.z,
+      this.abilities.currentKind.headColor,
+      Math.min(48, 18 + Math.round(this.preStepHeadSpeed * 3)),
+      Math.min(11, 3 + this.preStepHeadSpeed * 0.6),
+    );
+    this.slamCooldown = SLAM_COOLDOWN;
+  }
 
   private refreshHud(): void {
     this.hud.update(
@@ -211,15 +281,20 @@ export class Game {
     this.elapsedMs = 0;
     this.finishedTimeMs = null;
     this.scoreSubmittedForRun = false;
+    this.slams = 0;
 
     this.player.resetTo(this.map.playerStart);
     this.controller.reset();
     this.physics.reset();
+    this.abilities.reset();
+    this.equipHammer(this.abilities.currentKind.id);
+    this.syncProgressionHud();
     this.engine.syncClock();
 
     this.hud.resetWin();
     this.hud.setPendingScore(false, '', null);
     this.setMenuOpen(false);
+    this.setShopOpen(false);
 
     this.player.getFocus(this.focus);
     this.engine.updateCamera(this.focus.x, this.focus.y, 0);
@@ -229,16 +304,70 @@ export class Game {
   }
 
   private setMenuOpen(open: boolean): void {
+    if (open) this.setShopOpen(false);
     this.menuOpen = open;
     this.hud.setMenuOpen(open);
     this.engine.syncClock();
   }
 
+  private setShopOpen(open: boolean): void {
+    if (open) this.setMenuOpen(false);
+    this.shopOpen = open;
+    this.hud.setShopOpen(open);
+    this.engine.syncClock();
+  }
+
   private onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    this.setMenuOpen(!this.menuOpen);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (this.shopOpen) {
+        this.setShopOpen(false);
+      } else {
+        this.setMenuOpen(!this.menuOpen);
+      }
+      return;
+    }
+    if (this.menuOpen || this.shopOpen || !this.abilities) return;
+    // Number keys swap owned hammers in shop order.
+    const idx = HAMMER_KEYS.indexOf(event.key as (typeof HAMMER_KEYS)[number]);
+    if (idx >= 0 && idx < HAMMER_ORDER.length) {
+      this.equipHammer(HAMMER_ORDER[idx]);
+    }
   };
+
+  private buyHammer(id: HammerId): void {
+    if (this.progression.owned.includes(id)) {
+      this.equipHammer(id);
+      return;
+    }
+
+    const hammer = HAMMERS[id];
+    if (!hammer || hammer.price > this.progression.coins) return;
+
+    this.progression.coins -= hammer.price;
+    this.progression.owned = [...new Set([...this.progression.owned, id])]
+      .sort((a, b) => HAMMER_ORDER.indexOf(a) - HAMMER_ORDER.indexOf(b));
+    saveProgression(this.progression);
+
+    this.equipHammer(id);
+    this.syncProgressionHud();
+  }
+
+  private equipHammer(id: HammerId): void {
+    if (!this.abilities || !this.progression.owned.includes(id)) return;
+    this.abilities.setHammer(id);
+    this.syncProgressionHud();
+  }
+
+  private syncProgressionHud(): void {
+    this.hud.setSlams(this.slams);
+    this.hud.setCoins(this.progression.coins);
+    this.hud.setShopState(
+      this.progression.coins,
+      [...this.progression.owned],
+      this.abilities?.currentKind.id ?? 'basic',
+    );
+  }
 
   private updateSetting(key: HudSettingKey, value: string | boolean): void {
     switch (key) {
@@ -286,6 +415,8 @@ export class Game {
   stop(): void {
     this.running = false;
     window.removeEventListener('keydown', this.onKeyDown);
+    this.abilities?.dispose();
+    this.vfx?.dispose();
     this.controller?.dispose();
     this.player?.dispose();
     this.engine.dispose();

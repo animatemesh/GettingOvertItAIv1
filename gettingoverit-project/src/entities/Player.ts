@@ -31,6 +31,8 @@ const PLAYER_GROUPS = (GROUP_PLAYER << 16) | GROUP_TERRAIN;
 
 const GRIP_OFFSET_Y = CAULDRON.gripOffsetY;
 const HAMMER_VISUAL_Z = 0.6;
+const HAND_SWAP_ENTER_X = 0.1;
+const HAND_SWAP_EXIT_X = 0.18;
 
 export class Player {
   readonly cauldronBody: RAPIER.RigidBody;
@@ -46,6 +48,7 @@ export class Player {
   private readonly rig = new CharacterRig();
 
   private currentReach: number = HAMMER.handleLength;
+  private leftHandLowOnShaft = false;
   private shaftMesh!: THREE.Mesh;
   private headMesh!: THREE.Mesh;
   private clawMesh!: THREE.Mesh;
@@ -54,6 +57,7 @@ export class Player {
   // Scratch.
   private readonly hq = new THREE.Quaternion();
   private readonly htv = new THREE.Vector3();
+  private readonly tmpHeadW = new THREE.Vector3();
   private readonly rightGrip = new THREE.Vector3();
   private readonly leftGrip = new THREE.Vector3();
   private readonly rightPole = new THREE.Vector3();
@@ -153,6 +157,37 @@ export class Player {
     return this.currentReach;
   }
 
+  /** Recolour the hammer meshes to reflect the equipped hammer kind. */
+  setHammerColors(headColor: number, shaftColor: number): void {
+    (this.shaftMesh.material as THREE.MeshStandardMaterial).color.setHex(shaftColor);
+    (this.buttMesh.material as THREE.MeshStandardMaterial).color.setHex(shaftColor);
+    (this.headMesh.material as THREE.MeshStandardMaterial).color.setHex(headColor);
+    (this.clawMesh.material as THREE.MeshStandardMaterial).color.setHex(headColor);
+  }
+
+  /** Hammer head world position (for VFX / ability anchors). */
+  headWorldPosition(out: THREE.Vector3): THREE.Vector3 {
+    const t = this.hammerBody.translation();
+    const r = this.hammerBody.rotation();
+    this.hq.set(r.x, r.y, r.z, r.w);
+    return out.copy(this.headLocalOffset).applyQuaternion(this.hq).add(this.htv.set(t.x, t.y, t.z));
+  }
+
+  /** Speed (m/s) of the hammer head point in the XY plane — used to tell a real
+   *  slam from gentle contact. v_head = v_com + omega x r. */
+  headSpeed(): number {
+    this.headWorldPosition(this.tmpHeadW);
+    const v = this.hammerBody.linvel();
+    const w = this.hammerBody.angvel();
+    const t = this.hammerBody.translation();
+    const rx = this.tmpHeadW.x - t.x;
+    const ry = this.tmpHeadW.y - t.y;
+    const rz = this.tmpHeadW.z - t.z;
+    const vx = v.x + (w.y * rz - w.z * ry);
+    const vy = v.y + (w.z * rx - w.x * rz);
+    return Math.hypot(vx, vy);
+  }
+
   /** Apply a new hammer reach to both physics colliders and visuals. */
   setHammerReach(reach: number): void {
     const clamped = THREE.MathUtils.clamp(reach, 0.1, HAMMER.handleLength);
@@ -182,8 +217,19 @@ export class Player {
     this.hq.set(hr.x, hr.y, hr.z, hr.w);
     this.htv.set(ht.x, ht.y, ht.z);
 
-    this.rightGrip.copy(this.rGripLocal).applyQuaternion(this.hq).add(this.htv);
-    this.leftGrip.copy(this.lGripLocal).applyQuaternion(this.hq).add(this.htv);
+    this.tmpHeadW.copy(this.headLocalOffset).applyQuaternion(this.hq).add(this.htv);
+    const headDx = this.tmpHeadW.x - this.htv.x;
+    if (!this.leftHandLowOnShaft && headDx < -HAND_SWAP_ENTER_X) {
+      this.leftHandLowOnShaft = true;
+    } else if (this.leftHandLowOnShaft && headDx > HAND_SWAP_EXIT_X) {
+      this.leftHandLowOnShaft = false;
+    }
+
+    const rightGripLocal = this.leftHandLowOnShaft ? this.lGripLocal : this.rGripLocal;
+    const leftGripLocal = this.leftHandLowOnShaft ? this.rGripLocal : this.lGripLocal;
+
+    this.rightGrip.copy(rightGripLocal).applyQuaternion(this.hq).add(this.htv);
+    this.leftGrip.copy(leftGripLocal).applyQuaternion(this.hq).add(this.htv);
     this.rightGrip.z += HAMMER_VISUAL_Z;
     this.leftGrip.z += HAMMER_VISUAL_Z;
 
@@ -199,6 +245,7 @@ export class Player {
 
   resetTo(start: Vec2): void {
     this.setHammerReach(HAMMER.handleLength);
+    this.leftHandLowOnShaft = false;
 
     this.cauldronBody.setTranslation({ x: start.x, y: start.y, z: PLANE_Z }, false);
     this.cauldronBody.setRotation({ x: 0, y: 0, z: 0, w: 1 }, false);

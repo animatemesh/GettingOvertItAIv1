@@ -57,6 +57,52 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.hud-slams,
+.hud-coins {
+  position: absolute;
+  left: 22px;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-slams {
+  top: 70px;
+  color: #ffd98a;
+  text-shadow: 0 0 10px rgba(255, 196, 92, 0.5);
+}
+
+.hud-coins {
+  top: 92px;
+  color: #9ee8ff;
+  text-shadow: 0 0 10px rgba(95, 212, 255, 0.45);
+}
+
+.hud-hammer {
+  position: absolute;
+  bottom: 64px;
+  left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  background: rgba(20, 22, 28, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.hud-hammer-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.hud-hammer-ability {
+  font-size: 12px;
+  opacity: 0.78;
+}
+
 .hud-anchor {
   position: absolute;
   top: 18px;
@@ -478,9 +524,9 @@ body {
 .hud-debug,
 .hud-reset,
 .hud-menu,
+.hud-shop,
 .hud-credit {
   position: absolute;
-  right: 22px;
   pointer-events: auto;
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.25);
@@ -497,18 +543,35 @@ body {
 }
 
 .hud-debug {
+  right: 22px;
   top: 52px;
 }
 
 .hud-reset {
+  right: 22px;
   top: 90px;
 }
 
 .hud-menu {
+  right: 22px;
   top: 128px;
 }
 
+.hud-shop {
+  left: 22px;
+  top: 128px;
+  border-color: rgba(158, 232, 255, 0.5);
+  background:
+    linear-gradient(135deg, rgba(22, 43, 54, 0.96), rgba(13, 24, 31, 0.92)),
+    rgba(20, 18, 16, 0.8);
+  color: #dff8ff;
+  box-shadow:
+    0 0 0 1px rgba(148, 231, 255, 0.14) inset,
+    0 10px 26px rgba(32, 116, 148, 0.2);
+}
+
 .hud-credit {
+  right: 22px;
   top: 166px;
   display: inline-flex;
   align-items: center;
@@ -552,9 +615,17 @@ body {
 }
 
 .hud-reset:hover,
-.hud-menu:hover {
+.hud-menu:hover,
+.hud-shop:hover {
   border-color: rgba(255, 255, 255, 0.5);
   background: rgba(40, 36, 31, 0.9);
+}
+
+.hud-shop:hover {
+  border-color: rgba(158, 232, 255, 0.72);
+  background:
+    linear-gradient(135deg, rgba(28, 58, 72, 0.98), rgba(16, 30, 39, 0.95)),
+    rgba(40, 36, 31, 0.9);
 }
 
 .hud-credit:hover {
@@ -581,11 +652,13 @@ body {
   inset: 0;
   background: rgba(9, 8, 6, 0.56);
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.16s ease;
 }
 
 .hud-menu-backdrop.is-open {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .hud-menu-panel {
@@ -614,12 +687,168 @@ body {
   pointer-events: auto;
 }
 
+.hud-shop-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(430px, calc(100vw - 18px));
+  height: 100%;
+  overflow: auto;
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(124, 230, 255, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(16, 22, 27, 0.98), rgba(8, 12, 16, 0.98));
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 18px 0 52px rgba(0, 0, 0, 0.34);
+  padding: 18px 18px 22px;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.hud-shop-panel.is-open {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
 .hud-menu-header {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
   margin-bottom: 16px;
+}
+
+.hud-shop-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.hud-shop-eyebrow {
+  margin: 0 0 6px;
+  color: #7ce6ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.hud-shop-header h2 {
+  margin: 0 0 8px;
+  font-size: 30px;
+}
+
+.hud-shop-header p {
+  margin: 0;
+  color: rgba(243, 239, 233, 0.72);
+  line-height: 1.45;
+}
+
+.hud-shop-wallet {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 18px 0 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(124, 230, 255, 0.14), transparent 38%),
+    rgba(29, 44, 52, 0.88);
+  border: 1px solid rgba(124, 230, 255, 0.18);
+}
+
+.hud-shop-wallet strong {
+  font-size: 32px;
+  color: #9ee8ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-shop-wallet span {
+  color: rgba(243, 239, 233, 0.74);
+}
+
+.hud-shop-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.hud-shop-card {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(33, 40, 47, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hud-shop-card.is-equipped {
+  border-color: rgba(255, 207, 102, 0.42);
+  box-shadow: 0 0 0 1px rgba(255, 207, 102, 0.16) inset;
+}
+
+.hud-shop-card.is-locked {
+  opacity: 0.92;
+}
+
+.hud-shop-card-head,
+.hud-shop-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hud-shop-card-head {
+  align-items: flex-start;
+}
+
+.hud-shop-slot {
+  margin: 0 0 4px;
+  color: rgba(158, 232, 255, 0.68);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.hud-shop-card h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.hud-shop-price {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(14, 18, 22, 0.7);
+  color: #ffcf66;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hud-shop-ability {
+  margin: 10px 0 12px;
+  color: rgba(243, 239, 233, 0.86);
+  line-height: 1.45;
+}
+
+.hud-shop-meta {
+  margin-bottom: 12px;
+  color: rgba(243, 239, 233, 0.58);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hud-shop-buy {
+  width: 100%;
+  background: #7ce6ff;
+  color: #112028;
+  border-color: #7ce6ff;
+}
+
+.hud-shop-equip {
+  width: 100%;
 }
 
 .hud-finish-card {
@@ -831,14 +1060,24 @@ body {
   .hud-debug,
   .hud-reset,
   .hud-menu,
+  .hud-shop,
   .hud-credit {
     right: 16px;
+  }
+
+  .hud-shop {
+    left: 16px;
+    right: auto;
   }
 
   .hud-menu-panel {
     top: 2vh;
     width: min(960px, calc(100vw - 20px));
     max-height: 96vh;
+  }
+
+  .hud-shop-panel {
+    width: min(100vw - 10px, 420px);
   }
 
   .hud-menu-grid {

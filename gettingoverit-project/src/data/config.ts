@@ -185,13 +185,16 @@ export const MODEL = {
   yOffset: -0.25,
   /** Yaw (radians) to face the model toward the camera (+Z). */
   faceRotationY: 0,
-  /** Grip points on the hammer handle (hammer-local; handle is +Y, 0..length). */
-  rightGripLocal: { x: 0.03, y: 0.1, z: 0.0 },
-  leftGripLocal: { x: -0.03, y: 0.34, z: 0.0 },
-  /** Elbow pole bias added to the right hand target (world). */
-  rightPoleOffset: { x: 0.55, y: -0.1, z: 1.05 },
+  /** Grip points on the hammer handle (hammer-local; handle is +Y, 0..length).
+   *  Spread a little so the two hands sit apart on the shaft, not overlapping. */
+  rightGripLocal: { x: 0.04, y: 0.05, z: 0.0 },
+  leftGripLocal: { x: -0.04, y: 0.45, z: 0.0 },
+  /** Elbow pole bias added to the right hand target (world). Pushes the elbow
+   *  DOWN and OUT (and slightly forward) so the forearm clears the torso/chest
+   *  instead of folding into it. */
+  rightPoleOffset: { x: 0.85, y: -0.7, z: 0.55 },
   /** Elbow pole bias added to the left hand target (world). */
-  leftPoleOffset: { x: -0.55, y: -0.1, z: 1.05 },
+  leftPoleOffset: { x: -0.85, y: -0.7, z: 0.55 },
 } as const;
 
 /** Breast secondary-motion settings (ported from breast-physics.json). */

@@ -1,6 +1,7 @@
 import type { Zone } from '../data/mapData';
 import type { HighscoreEntry } from '../data/scoreStore';
 import type { GameSettings } from '../data/settingsStore';
+import { HAMMERS, HAMMER_ORDER, type HammerId } from '../data/hammers';
 import { canUseMapEditor } from '../utils/editorAccess';
 
 export type HudSettingKey =
@@ -20,6 +21,17 @@ export interface HudCallbacks {
   onCloseMenu: () => void;
   onSubmitScore: () => void;
   onSettingChange: (key: HudSettingKey, value: string | boolean) => void;
+  onToggleShop: () => void;
+  onCloseShop: () => void;
+  onBuyHammer: (id: HammerId) => void;
+  onEquipHammer: (id: HammerId) => void;
+}
+
+interface ShopState {
+  open: boolean;
+  coins: number;
+  owned: HammerId[];
+  current: HammerId;
 }
 
 interface HudMenuState {
@@ -39,17 +51,23 @@ export class Hud {
   private readonly zoneEl: HTMLDivElement;
   private readonly heightEl: HTMLDivElement;
   private readonly timerEl: HTMLDivElement;
+  private readonly slamsEl: HTMLDivElement;
+  private readonly coinsEl: HTMLDivElement;
+  private readonly hammerEl: HTMLDivElement;
   private readonly anchorEl: HTMLDivElement;
   private readonly bannerEl: HTMLDivElement;
   private readonly debugButton: HTMLButtonElement;
   private readonly resetButton: HTMLButtonElement;
   private readonly menuButton: HTMLButtonElement;
+  private readonly shopButton: HTMLButtonElement;
   private readonly creditLink: HTMLAnchorElement;
   private readonly menuOverlay: HTMLDivElement;
+  private readonly shopOverlay: HTMLDivElement;
   private readonly callbacks: HudCallbacks;
 
   private won = false;
   private menuState: HudMenuState;
+  private shopState: ShopState = { open: false, coins: 0, owned: ['basic'], current: 'basic' };
 
   constructor(container: HTMLElement, callbacks: HudCallbacks, settings: GameSettings) {
     this.callbacks = callbacks;
@@ -65,6 +83,17 @@ export class Hud {
     this.timerEl = document.createElement('div');
     this.timerEl.className = 'hud-timer';
 
+    this.slamsEl = document.createElement('div');
+    this.slamsEl.className = 'hud-slams';
+    this.slamsEl.textContent = 'Slams: 0';
+
+    this.coinsEl = document.createElement('div');
+    this.coinsEl.className = 'hud-coins';
+    this.coinsEl.textContent = 'Coins: 0';
+
+    this.hammerEl = document.createElement('div');
+    this.hammerEl.className = 'hud-hammer';
+
     this.anchorEl = document.createElement('div');
     this.anchorEl.className = 'hud-anchor';
     this.anchorEl.textContent = 'ANCHOR';
@@ -75,6 +104,7 @@ export class Hud {
     this.debugButton = this.makeButton('hud-debug', 'Debug Collisions: Off', 'toggle-debug');
     this.resetButton = this.makeButton('hud-reset', 'Reset Run', 'reset-run');
     this.menuButton = this.makeButton('hud-menu', 'Menu (Esc)', 'toggle-menu');
+    this.shopButton = this.makeButton('hud-shop', 'Shop', 'toggle-shop');
     this.creditLink = document.createElement('a');
     this.creditLink.className = 'hud-credit';
     this.creditLink.href = 'https://www.youtube.com/@DevManAI';
@@ -84,10 +114,13 @@ export class Hud {
 
     const hint = document.createElement('div');
     hint.className = 'hud-hint';
-    hint.textContent = 'Move the mouse around the pot to swing and retract the hammer. Push into the ground to launch.';
+    hint.textContent = `Move the mouse to swing the hammer. Hard slams earn coins. Keys 1-${HAMMER_ORDER.length} equip owned hammers; LMB uses the special.`;
 
     this.menuOverlay = document.createElement('div');
     this.menuOverlay.className = 'hud-menu-overlay';
+
+    this.shopOverlay = document.createElement('div');
+    this.shopOverlay.className = 'hud-menu-overlay hud-shop-overlay';
 
     this.menuState = {
       open: false,
@@ -108,18 +141,24 @@ export class Hud {
       this.zoneEl,
       this.heightEl,
       this.timerEl,
+      this.slamsEl,
+      this.coinsEl,
+      this.hammerEl,
       this.anchorEl,
       this.bannerEl,
       this.debugButton,
       this.resetButton,
       this.menuButton,
+      this.shopButton,
       this.creditLink,
       this.menuOverlay,
+      this.shopOverlay,
       hint,
     );
     container.appendChild(this.root);
 
     this.renderMenu();
+    this.renderShop();
   }
 
   update(focusY: number, zones: Zone[], anchored: boolean, timerMs: number): void {
@@ -128,6 +167,37 @@ export class Hud {
     this.heightEl.textContent = `${focusY.toFixed(1)} m`;
     this.timerEl.textContent = formatTime(timerMs);
     this.anchorEl.classList.toggle('on', anchored);
+  }
+
+  setSlams(slams: number): void {
+    this.slamsEl.textContent = `Slams: ${slams}`;
+  }
+
+  setCoins(coins: number): void {
+    this.coinsEl.textContent = `Coins: ${coins}`;
+    this.shopState.coins = coins;
+    if (this.shopState.open) this.renderShop();
+  }
+
+  setHammer(name: string, ability: string): void {
+    this.hammerEl.innerHTML =
+      `<span class="hud-hammer-name">${escapeHtml(name)}</span>` +
+      `<span class="hud-hammer-ability">${escapeHtml(ability)}</span>`;
+  }
+
+  setShopState(coins: number, owned: HammerId[], current: HammerId): void {
+    this.shopState.coins = coins;
+    this.shopState.owned = owned;
+    this.shopState.current = current;
+    this.coinsEl.textContent = `Coins: ${coins}`;
+    this.renderShop();
+  }
+
+  setShopOpen(open: boolean): void {
+    if (this.shopState.open === open) return;
+    this.shopState.open = open;
+    this.root.classList.toggle('shop-open', open);
+    this.renderShop();
   }
 
   showWin(): void {
@@ -195,6 +265,7 @@ export class Hud {
   private onClick = (event: MouseEvent): void => {
     const target = event.target as HTMLElement | null;
     const action = target?.closest<HTMLElement>('[data-action]')?.dataset.action;
+    const hammerId = target?.closest<HTMLElement>('[data-hammer-id]')?.dataset.hammerId as HammerId | undefined;
     if (!action) return;
 
     switch (action) {
@@ -215,6 +286,18 @@ export class Hud {
         return;
       case 'submit-score':
         this.callbacks.onSubmitScore();
+        return;
+      case 'toggle-shop':
+        this.callbacks.onToggleShop();
+        return;
+      case 'close-shop':
+        this.callbacks.onCloseShop();
+        return;
+      case 'buy-hammer':
+        if (hammerId) this.callbacks.onBuyHammer(hammerId);
+        return;
+      case 'equip-hammer':
+        if (hammerId) this.callbacks.onEquipHammer(hammerId);
         return;
       default:
         return;
@@ -244,7 +327,10 @@ export class Hud {
       : 'Shared online leaderboard is connected.';
 
     this.menuOverlay.innerHTML = `
-      <div class="hud-menu-backdrop ${this.menuState.open ? 'is-open' : ''}"></div>
+      <div
+        class="hud-menu-backdrop ${this.menuState.open ? 'is-open' : ''}"
+        data-action="close-menu"
+      ></div>
       <section class="hud-menu-panel ${this.menuState.open ? 'is-open' : ''}">
         ${this.menuState.canSubmitScore ? `
           <section class="hud-finish-card">
@@ -354,6 +440,66 @@ export class Hud {
             </div>
           </section>
         </div>
+      </section>
+    `;
+  }
+
+  private renderShop(): void {
+    const cards = HAMMER_ORDER.map((id, index) => {
+      const hammer = HAMMERS[id];
+      const owned = this.shopState.owned.includes(id);
+      const equipped = this.shopState.current === id;
+      const affordable = this.shopState.coins >= hammer.price;
+      const action = owned ? 'equip-hammer' : 'buy-hammer';
+      const actionText = equipped ? 'Equipped' : owned ? 'Equip' : `Buy (${hammer.price})`;
+      const disabled = equipped || (!owned && !affordable);
+
+      return `
+        <article class="hud-shop-card ${owned ? 'is-owned' : 'is-locked'} ${equipped ? 'is-equipped' : ''}">
+          <div class="hud-shop-card-head">
+            <div>
+              <p class="hud-shop-slot">Slot ${index + 1}</p>
+              <h3>${escapeHtml(hammer.name)}</h3>
+            </div>
+            <span class="hud-shop-price">${hammer.price === 0 ? 'Free' : `${hammer.price} coins`}</span>
+          </div>
+          <p class="hud-shop-ability">${escapeHtml(hammer.ability)}</p>
+          <div class="hud-shop-meta">
+            <span>${hammer.cooldownSec > 0 ? `${hammer.cooldownSec.toFixed(1)}s cooldown` : 'No cooldown'}</span>
+            <span>${owned ? 'Owned' : affordable ? 'Affordable' : 'Locked'}</span>
+          </div>
+          <button
+            type="button"
+            class="hud-menu-button ${owned ? 'hud-shop-equip' : 'hud-shop-buy'}"
+            data-action="${action}"
+            data-hammer-id="${hammer.id}"
+            ${disabled ? 'disabled' : ''}
+          >
+            ${actionText}
+          </button>
+        </article>
+      `;
+    }).join('');
+
+    this.shopOverlay.innerHTML = `
+      <div
+        class="hud-menu-backdrop ${this.shopState.open ? 'is-open' : ''}"
+        data-action="close-shop"
+      ></div>
+      <section class="hud-shop-panel ${this.shopState.open ? 'is-open' : ''}">
+        <div class="hud-shop-header">
+          <div>
+            <p class="hud-shop-eyebrow">Progression</p>
+            <h2>Hammer Shop</h2>
+            <p>Every hard slam earns 1 coin. Buy hammers here, then switch between owned ones with keys 1-${HAMMER_ORDER.length}.</p>
+          </div>
+          <button type="button" class="hud-menu-close" data-action="close-shop">Close</button>
+        </div>
+        <div class="hud-shop-wallet">
+          <strong>${this.shopState.coins}</strong>
+          <span>coins available</span>
+        </div>
+        <div class="hud-shop-grid">${cards}</div>
       </section>
     `;
   }

@@ -48,6 +48,13 @@ export class Engine {
   private readonly clock = new THREE.Clock();
   private accumulator = 0;
 
+  /**
+   * Simulation time scale. 1 = realtime; lower = slow-motion (used by the Ice
+   * hammer). Only the physics accumulator is scaled, so the camera/VFX keep
+   * updating smoothly while the world slows.
+   */
+  timeScale = 1;
+
   /** Bodies whose plane invariant is enforced every substep. */
   private readonly planeLockedBodies: RAPIER.RigidBody[] = [];
 
@@ -115,7 +122,9 @@ export class Engine {
    */
   update(hooks: StepHooks): number {
     const frameDt = Math.min(this.clock.getDelta(), 0.1);
-    this.accumulator += frameDt;
+    // Slow-motion scales the physics budget but not the returned real dt, so
+    // camera follow and VFX stay smooth while the simulation slows.
+    this.accumulator += frameDt * this.timeScale;
 
     let steps = 0;
     while (this.accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
