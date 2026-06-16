@@ -44,9 +44,13 @@ export const CAULDRON = {
   /** Angular damping so the pot rocks but settles, never spins freely. */
   angularDamping: 0.9,
   /** Visual + collision radius of the rounded cauldron base. */
-  radius: 0.85,
+  radius: 0.6,
   /** Half-height of the cylindrical body of the pot. */
-  halfHeight: 0.6,
+  halfHeight: 0.7,
+  /** Raise/lower the whole cauldron collider relative to the body origin. */
+  colliderOffsetY: 1.1,
+  /** Height of the hammer grip pivot above the body origin. */
+  gripOffsetY: 0.95,
 } as const;
 
 export const HAMMER = {
@@ -79,12 +83,22 @@ export const STEERING = {
   /** Maximum steering force magnitude so the hammer can't teleport. */
   maxForce: 1300.0,
   /**
-   * Maximum reach of the cursor target measured from the cauldron pivot.
-   * Caps how far the handle can extend regardless of where the mouse goes.
+   * Outer radius of the cursor's reach DISC, measured from the grip pivot.
+   * Set to the hammer's rod length so a clamped target is always reachable in
+   * direction (the head can rotate to any boundary point), keeping the PD
+   * error bounded and avoiding the outward-saturation levitation bug. The
+   * cursor may also aim anywhere INSIDE this disc, giving the head's PD force
+   * a radial component for pressing into / pulling off terrain — the core of
+   * vaulting and hooking (pushing yourself up).
    */
   maxReach: HAMMER.handleLength + 0.6,
-  /** Minimum reach so the head can't be folded back through the body. */
+  /**
+   * Inner radius of the reach disc (a small dead zone): the head can't be
+   * folded back through the body, and direction is unstable when the cursor
+   * sits on the pivot, so distance is clamped up to this minimum.
+   */
   minReach: 0.5,
+  reachSpeed: 15.0,
 } as const;
 
 /* -------------------------------------------------------------------------- */

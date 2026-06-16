@@ -106,7 +106,7 @@ export const CLIMB_OF_PATIENCE: ClimbMap = {
   style: 'surreal junkyard vertical climbing challenge',
   gravity: 9.81,
   worldBounds: { minX: -25, maxX: 35, minY: 0, maxY: 180 },
-  playerStart: { x: 0, y: 2.4 },
+  playerStart: { x: 0, y: 2.3 },
   zones: [
     {
       id: 'zone_01_rust_pit',
@@ -116,7 +116,7 @@ export const CLIMB_OF_PATIENCE: ClimbMap = {
       description:
         'The starting area is a shallow industrial pit filled with rusted containers, bent metal sheets, and broken pipes.',
       objects: [
-        { id: 'start_bowl', type: 'solid', shape: 'semicircle', position: { x: 0, y: 1 }, size: { width: 3.2, height: 1.6 }, rotation: 0, material: 'dark metal', notes: 'Starting container.' },
+        { id: 'start_bowl', type: 'solid', shape: 'concaveDish', position: { x: 0, y: 0.3 }, size: { width: 2.6, height: 1.6 }, rotation: 0, material: 'dark metal', notes: 'Starting container — concave cradle the cauldron rests in.' },
         { id: 'left_wall_low', type: 'solid', shape: 'rect', position: { x: -5, y: 4 }, size: { width: 1.2, height: 8 }, rotation: 0, material: 'concrete' },
         { id: 'rust_pipe_01', type: 'round', shape: 'cylinder', position: { x: 2.5, y: 4.5 }, size: { width: 5, height: 0.8 }, rotation: -18, material: 'rusted pipe', difficulty: 'easy hook' },
         { id: 'metal_plate_01', type: 'solid', shape: 'rect', position: { x: -1.5, y: 8 }, size: { width: 5.5, height: 0.45 }, rotation: 12, material: 'bent sheet metal' },

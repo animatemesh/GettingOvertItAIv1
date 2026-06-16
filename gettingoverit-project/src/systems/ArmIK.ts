@@ -11,6 +11,12 @@
  * bind pose, so the solver works for any rig whose bones point along a
  * consistent local axis (here +Y). Lengths are measured in world space on first
  * solve, so it is robust to the model's group scale.
+ *
+ * The chain's nominal end effector is `hand` (the wrist), but an optional
+ * `grip` bone further down the chain (e.g. a finger root) can be supplied —
+ * the reach length is then measured out to `grip` instead, so the target
+ * lands at the fingers rather than the wrist. `grip` must be a descendant of
+ * `hand`; it does not need to be a direct child.
  */
 
 import { Quaternion, Vector3 } from 'three';
@@ -20,10 +26,11 @@ export class ArmIK {
   private readonly upper: Bone;
   private readonly lower: Bone;
   private readonly hand: Bone;
+  private readonly grip: Bone;
 
   private inited = false;
   private L1 = 0; // upper -> lower (world rest length)
-  private L2 = 0; // lower -> hand  (world rest length)
+  private L2 = 0; // lower -> grip  (world rest length)
   private readonly fwdUpper = new Vector3(0, 1, 0);
   private readonly fwdLower = new Vector3(0, 1, 0);
 
@@ -40,10 +47,11 @@ export class ArmIK {
   private readonly qParent = new Quaternion();
   private readonly qParentInv = new Quaternion();
 
-  constructor(upper: Bone, lower: Bone, hand: Bone) {
+  constructor(upper: Bone, lower: Bone, hand: Bone, grip?: Bone) {
     this.upper = upper;
     this.lower = lower;
     this.hand = hand;
+    this.grip = grip ?? hand;
   }
 
   /** Measure rest lengths + bind forward axes once the rig is in the scene. */
@@ -51,12 +59,15 @@ export class ArmIK {
     this.upper.updateWorldMatrix(true, true);
     this.upper.getWorldPosition(this.pUpper);
     this.lower.getWorldPosition(this.pLower);
-    this.hand.getWorldPosition(this.pHand);
+    this.grip.getWorldPosition(this.pHand);
 
     this.L1 = Math.max(this.pUpper.distanceTo(this.pLower), 1e-4);
     this.L2 = Math.max(this.pLower.distanceTo(this.pHand), 1e-4);
 
     // Bind forward = direction toward child in each bone's LOCAL space.
+    // (fwdLower is taken from the direct child `hand`, not `grip`, since
+    // `grip` may not be a direct child — but the bind axis is identical
+    // either way, only the reach length L2 differs.)
     this.fwdUpper.copy(this.lower.position).normalize();
     this.fwdLower.copy(this.hand.position).normalize();
     if (this.fwdUpper.lengthSq() < 1e-8) this.fwdUpper.set(0, 1, 0);

@@ -56,6 +56,10 @@ export class Engine {
   private readonly fogColorLow = new THREE.Color(ATMOSPHERE.skyLow);
   private readonly fogColorHigh = new THREE.Color(ATMOSPHERE.skyHigh);
   private readonly bgColor = new THREE.Color(ATMOSPHERE.skyLow);
+  private debugEnabled = false;
+  private debugLines: THREE.LineSegments | null = null;
+  private readonly debugPositions = new Float32Array(0);
+  private readonly debugColors = new Float32Array(0);
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -178,7 +182,55 @@ export class Engine {
   }
 
   render(): void {
+    this.updateDebugOverlay();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  toggleDebugRender(): boolean {
+    this.debugEnabled = !this.debugEnabled;
+    if (!this.debugEnabled) this.hideDebugOverlay();
+    return this.debugEnabled;
+  }
+
+  private updateDebugOverlay(): void {
+    if (!this.debugEnabled || !this.world) return;
+
+    const buffers = this.world.debugRender();
+    const lines = this.ensureDebugLines();
+    const geometry = lines.geometry as THREE.BufferGeometry;
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(buffers.vertices, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(buffers.colors, 4));
+    geometry.computeBoundingSphere();
+  }
+
+  private ensureDebugLines(): THREE.LineSegments {
+    if (this.debugLines) return this.debugLines;
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.debugPositions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(this.debugColors, 4));
+
+    const material = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+    });
+
+    this.debugLines = new THREE.LineSegments(geometry, material);
+    this.debugLines.frustumCulled = false;
+    this.debugLines.renderOrder = 999;
+    this.scene.add(this.debugLines);
+    return this.debugLines;
+  }
+
+  private hideDebugOverlay(): void {
+    if (!this.debugLines) return;
+    this.scene.remove(this.debugLines);
+    this.debugLines.geometry.dispose();
+    (this.debugLines.material as THREE.Material).dispose();
+    this.debugLines = null;
   }
 
   /** A soft static vertical gradient used as the sky background. */
@@ -246,6 +298,7 @@ export class Engine {
 
   dispose(): void {
     window.removeEventListener('resize', this.onResize);
+    this.hideDebugOverlay();
     this.renderer.dispose();
   }
 }

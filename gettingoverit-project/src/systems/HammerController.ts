@@ -1,25 +1,19 @@
 /**
- * systems/HammerController.ts  —  FILE 3: Hammer Physics & Lever Control
+ * systems/HammerController.ts
  * -----------------------------------------------------------------------------
  * Direct mouse-to-hammer control.
  *
- *   1. The pointer position is raycast from the camera onto the gameplay plane
- *      (z = 0) to obtain a world-space target.
- *   2. The vector from the cauldron grip pivot to that target is capped to a
- *      maximum extension so the handle cannot reach infinitely.
- *   3. A proportional-derivative (PD) controller drives the hammer HEAD toward
- *      the (clamped) target by applying a force at the head point. Because the
- *      force is applied off the centre of mass it produces both the linear and
- *      angular response that swings, hooks, pushes and vaults the hammer — and,
- *      through the grip joint, transfers reaction into the cauldron.
- *
- * The controller publishes the per-step steering force and head world position
- * so the PhysicsManager can translate anchored leverage into cauldron impulses.
+ * The pointer is projected onto the gameplay plane, converted into a direction
+ * plus a desired reach from the cauldron grip pivot, and then fed into a PD
+ * controller that drives the hammer head toward that moving target. Unlike the
+ * earlier fixed-length version, the hammer can now retract and extend along the
+ * handle, which makes downward pushes, tighter placements, and Bennett-style
+ * precision launches possible.
  */
 
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
-import { STEERING, PLANE_Z } from '../data/config';
+import { PLANE_Z, STEERING } from '../data/config';
 
 export interface HammerControllerOpts {
   camera: THREE.PerspectiveCamera;
@@ -29,6 +23,10 @@ export interface HammerControllerOpts {
   headLocalOffset: THREE.Vector3;
   /** Returns the cauldron grip pivot (world XY) the handle extends from. */
   getPivot: () => THREE.Vector2;
+  /** Current hammer reach, in world units. */
+  getReach: () => number;
+  /** Applies a new hammer reach to the player visuals and colliders. */
+  setReach: (reach: number) => void;
 }
 
 export class HammerController {
@@ -37,10 +35,17 @@ export class HammerController {
   private readonly body: RAPIER.RigidBody;
   private readonly headLocalOffset: THREE.Vector3;
   private readonly getPivot: () => THREE.Vector2;
+  private readonly getReach: () => number;
+  private readonly setReach: (reach: number) => void;
 
   /** Pointer position in normalised device coordinates [-1, 1]. */
   private readonly ndc = new THREE.Vector2(0, 0.2);
   private pointerInside = false;
+  /** Last stable aim direction, reused inside the dead zone to avoid spin. */
+  private readonly lastDir = new THREE.Vector2(0, 1);
+
+  private desiredReach: number = STEERING.maxReach;
+  private currentReach: number = STEERING.maxReach;
 
   // Published per-step outputs (mutated in place; do not reassign externally).
   readonly targetWorld = new THREE.Vector3(0, 1, PLANE_Z);
@@ -59,8 +64,13 @@ export class HammerController {
     this.camera = opts.camera;
     this.domElement = opts.domElement;
     this.body = opts.hammerBody;
-    this.headLocalOffset = opts.headLocalOffset.clone();
+    this.headLocalOffset = opts.headLocalOffset;
     this.getPivot = opts.getPivot;
+    this.getReach = opts.getReach;
+    this.setReach = opts.setReach;
+
+    this.currentReach = this.getReach();
+    this.desiredReach = this.currentReach;
 
     this.domElement.addEventListener('pointermove', this.onPointerMove);
     this.domElement.addEventListener('pointerenter', this.onPointerEnter);
@@ -79,33 +89,58 @@ export class HammerController {
   };
 
   private onPointerLeave = (): void => {
-    // Keep steering toward the last known target so the hammer doesn't drop.
+    // Keep steering toward the last known target so the hammer does not drop.
     this.pointerInside = false;
   };
 
-  /** Recompute the world-space target from the pointer ray and the reach cap. */
+  /**
+   * Recompute the world-space target from the current pointer ray. The pointer
+   * chooses both the swing direction and how far the head should retract or
+   * extend from the grip pivot.
+   */
   private updateTarget(): void {
     this.ray.setFromCamera(this.ndc, this.camera);
     const hit = this.ray.ray.intersectPlane(this.plane, this.targetWorld);
 
     const pivot = this.getPivot();
+
     if (!hit) {
-      // Ray parallel to plane (degenerate); hold target straight above pivot.
-      this.targetWorld.set(pivot.x, pivot.y + STEERING.minReach, PLANE_Z);
+      this.targetWorld.set(
+        pivot.x + this.lastDir.x * this.desiredReach,
+        pivot.y + this.lastDir.y * this.desiredReach,
+        PLANE_Z,
+      );
       return;
     }
     this.targetWorld.z = PLANE_Z;
 
-    // Cap extension: clamp the target into [minReach, maxReach] of the pivot.
-    let dx = this.targetWorld.x - pivot.x;
-    let dy = this.targetWorld.y - pivot.y;
-    const dist = Math.hypot(dx, dy) || 1e-6;
-    const clamped = Math.min(Math.max(dist, STEERING.minReach), STEERING.maxReach);
-    if (clamped !== dist) {
-      dx = (dx / dist) * clamped;
-      dy = (dy / dist) * clamped;
-      this.targetWorld.set(pivot.x + dx, pivot.y + dy, PLANE_Z);
+    const dx = this.targetWorld.x - pivot.x;
+    const dy = this.targetWorld.y - pivot.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 1e-4) this.lastDir.set(dx / dist, dy / dist);
+
+    this.desiredReach = THREE.MathUtils.clamp(dist, STEERING.minReach, STEERING.maxReach);
+    this.targetWorld.set(
+      pivot.x + this.lastDir.x * this.desiredReach,
+      pivot.y + this.lastDir.y * this.desiredReach,
+      PLANE_Z,
+    );
+  }
+
+  /** Smooth the hammer's physical reach toward the requested cursor radius. */
+  private updateReach(dt: number): void {
+    const delta = this.desiredReach - this.currentReach;
+    if (Math.abs(delta) < 1e-5) return;
+
+    const maxStep = STEERING.reachSpeed * dt;
+    if (Math.abs(delta) <= maxStep) {
+      this.currentReach = this.desiredReach;
+    } else {
+      this.currentReach += Math.sign(delta) * maxStep;
     }
+
+    this.setReach(this.currentReach);
+    this.currentReach = this.getReach();
   }
 
   /** Compute the current world position of the hammer head point. */
@@ -119,13 +154,12 @@ export class HammerController {
     this.headWorld.z += t.z;
   }
 
-  /** Velocity of the head point: v_com + ω × r. */
+  /** Velocity of the head point: v_com + omega x r. */
   private computeHeadVelocity(): void {
     const v = this.body.linvel();
     const w = this.body.angvel();
     const t = this.body.translation();
     this.tmpR.set(this.headWorld.x - t.x, this.headWorld.y - t.y, this.headWorld.z - t.z);
-    // ω × r
     this.tmpHeadVel.set(
       w.y * this.tmpR.z - w.z * this.tmpR.y,
       w.z * this.tmpR.x - w.x * this.tmpR.z,
@@ -140,25 +174,23 @@ export class HammerController {
    * Apply one PD steering step. Call inside the fixed-step `beforeStep` hook so
    * the force is integrated by the very next world.step().
    */
-  update(): void {
-    // Rapier force accumulators PERSIST across steps until reset. Clear last
-    // substep's steering force/torque before applying this substep's, otherwise
-    // the force compounds every step and the hammer explodes.
+  update(dt: number): void {
+    // Rapier force accumulators persist across steps until reset. Clear the
+    // last substep's steering force and torque before applying this one.
     this.body.resetForces(false);
     this.body.resetTorques(false);
 
     this.updateTarget();
+    this.updateReach(dt);
     this.computeHeadWorld();
     this.computeHeadVelocity();
 
-    // PD: F = kp·(target - head) - kd·headVel
     this.tmpForce.set(
       STEERING.kp * (this.targetWorld.x - this.headWorld.x) - STEERING.kd * this.tmpHeadVel.x,
       STEERING.kp * (this.targetWorld.y - this.headWorld.y) - STEERING.kd * this.tmpHeadVel.y,
       0,
     );
 
-    // Clamp the steering force magnitude.
     const mag = this.tmpForce.length();
     if (mag > STEERING.maxForce) {
       this.tmpForce.multiplyScalar(STEERING.maxForce / mag);

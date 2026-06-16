@@ -45,8 +45,10 @@ export class CharacterRig {
     root.position.y = MODEL.yOffset;
     root.rotation.y = MODEL.faceRotationY;
 
-    this.rightArm = this.makeArm('upperarm_r', 'lowerarm_r', 'hand_r');
-    this.leftArm = this.makeArm('upperarm_l', 'lowerarm_l', 'hand_l');
+    // Grip target reaches out to the finger root (middle_01_*), not the wrist
+    // (hand_*), so the hammer sits in the hand rather than through the palm.
+    this.rightArm = this.makeArm('upperarm_r', 'lowerarm_r', 'hand_r', 'middle_01_r');
+    this.leftArm = this.makeArm('upperarm_l', 'lowerarm_l', 'hand_l', 'middle_01_l');
 
     this.breast = new BreastPhysics(root, {
       boneNames: BREAST.boneNames as unknown as string[],
@@ -62,15 +64,19 @@ export class CharacterRig {
     return root;
   }
 
-  private makeArm(upper: string, lower: string, hand: string): ArmIK | null {
+  private makeArm(upper: string, lower: string, hand: string, grip?: string): ArmIK | null {
     const u = this.bones.get(upper);
     const l = this.bones.get(lower);
     const h = this.bones.get(hand);
+    const g = grip ? this.bones.get(grip) : undefined;
     if (!u || !l || !h) {
       console.warn(`CharacterRig: missing arm bones ${upper}/${lower}/${hand}`);
       return null;
     }
-    return new ArmIK(u, l, h);
+    if (grip && !g) {
+      console.warn(`CharacterRig: missing grip bone ${grip}, falling back to ${hand}`);
+    }
+    return new ArmIK(u, l, h, g);
   }
 
   /** Pose arms to the hammer grips and advance breast secondary motion. */

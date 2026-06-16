@@ -2,7 +2,7 @@
  * ui/Hud.ts
  * -----------------------------------------------------------------------------
  * Minimal DOM overlay: current zone name, height-climbed meter, an anchor
- * indicator (lit while the hammer is biting a ledge) and the win banner.
+ * indicator, a debug toggle, and the win banner.
  */
 
 import type { Zone } from '../data/mapData';
@@ -13,9 +13,10 @@ export class Hud {
   private readonly heightEl: HTMLDivElement;
   private readonly anchorEl: HTMLDivElement;
   private readonly bannerEl: HTMLDivElement;
+  private readonly debugButton: HTMLButtonElement;
   private won = false;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, onToggleDebug: () => void) {
     this.root = document.createElement('div');
     this.root.className = 'hud';
 
@@ -32,17 +33,23 @@ export class Hud {
     this.bannerEl = document.createElement('div');
     this.bannerEl.className = 'hud-banner';
 
+    this.debugButton = document.createElement('button');
+    this.debugButton.className = 'hud-debug';
+    this.debugButton.type = 'button';
+    this.debugButton.textContent = 'Debug Collisions: Off';
+    this.debugButton.addEventListener('click', onToggleDebug);
+
     const hint = document.createElement('div');
     hint.className = 'hud-hint';
-    hint.textContent = 'Move the mouse to steer the hammer. Hook ledges and push to climb.';
+    hint.textContent = 'Move the mouse around the pot to swing and retract the hammer. Push into the ground to launch.';
 
-    this.root.append(this.zoneEl, this.heightEl, this.anchorEl, this.bannerEl, hint);
+    this.root.append(this.zoneEl, this.heightEl, this.anchorEl, this.bannerEl, this.debugButton, hint);
     container.appendChild(this.root);
   }
 
   update(focusY: number, zones: Zone[], anchored: boolean): void {
     const zone = zones.find((z) => focusY >= z.yRange[0] && focusY < z.yRange[1]);
-    this.zoneEl.textContent = zone ? zone.name : '—';
+    this.zoneEl.textContent = zone ? zone.name : '-';
     this.heightEl.textContent = `${focusY.toFixed(1)} m`;
     this.anchorEl.classList.toggle('on', anchored);
   }
@@ -50,7 +57,12 @@ export class Hud {
   showWin(): void {
     if (this.won) return;
     this.won = true;
-    this.bannerEl.textContent = 'The Quiet Beyond — you made it.';
+    this.bannerEl.textContent = 'The Quiet Beyond - you made it.';
     this.bannerEl.classList.add('show');
+  }
+
+  setDebugEnabled(enabled: boolean): void {
+    this.debugButton.textContent = `Debug Collisions: ${enabled ? 'On' : 'Off'}`;
+    this.debugButton.classList.toggle('on', enabled);
   }
 }

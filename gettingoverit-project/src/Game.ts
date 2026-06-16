@@ -33,7 +33,10 @@ export class Game {
 
   constructor(container: HTMLElement) {
     this.engine = new Engine(container);
-    this.hud = new Hud(container);
+    this.hud = new Hud(container, () => {
+      const enabled = this.engine.toggleDebugRender();
+      this.hud.setDebugEnabled(enabled);
+    });
   }
 
   async start(): Promise<void> {
@@ -57,6 +60,8 @@ export class Game {
       hammerBody: this.player.hammerBody,
       headLocalOffset: this.player.headLocalOffset,
       getPivot: () => this.player.getGripPivot(this.pivot),
+      getReach: () => this.player.hammerReach,
+      setReach: (reach) => this.player.setHammerReach(reach),
     });
 
     // Leverage translation (anchored head -> counter-impulse on the cauldron).
@@ -76,7 +81,7 @@ export class Game {
     if (!this.running) return;
 
     const frameDt = this.engine.update({
-      beforeStep: () => this.controller.update(),
+      beforeStep: (dt) => this.controller.update(dt),
       afterStep: (dt, eventQueue) => this.physics.update(dt, eventQueue),
     });
 
