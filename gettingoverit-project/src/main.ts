@@ -4,6 +4,7 @@
 import './style.css';
 import { Game } from './Game';
 import { MapEditor } from './editor/MapEditor';
+import { canUseMapEditor, stripEditorPath } from './utils/editorAccess';
 
 const REDIRECT_STORAGE_KEY = 'climb-of-patience:redirect-path';
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -16,10 +17,15 @@ if (redirectPath) {
 }
 
 const routePath = normalizePath(window.location.pathname);
-if (routePath === '/editor' || routePath.endsWith('/editor')) {
+const wantsEditor = routePath === '/editor' || routePath.endsWith('/editor');
+
+if (wantsEditor && canUseMapEditor()) {
   document.title = 'Climb of Patience Editor';
   new MapEditor(app);
 } else {
+  if (wantsEditor) {
+    window.history.replaceState(null, '', stripEditorPath(window.location.pathname));
+  }
   const game = new Game(app);
   game.start().catch((err) => {
     console.error('Failed to start game:', err);

@@ -201,6 +201,9 @@ export class MapEditor {
       case 'add-object':
         this.addObject();
         return;
+      case 'duplicate-object':
+        this.duplicateSelected();
+        return;
       case 'delete-object':
         this.deleteSelected();
         return;
@@ -426,6 +429,7 @@ export class MapEditor {
         <button type="button" data-action="zoom-out">-</button>
         <button type="button" data-action="zoom-in">+</button>
         <button type="button" data-action="fit-view">Fit</button>
+        <button type="button" data-action="duplicate-object" ${selected ? '' : 'disabled'}>Duplicate</button>
         <button type="button" data-action="copy-json">Copy JSON</button>
         <button type="button" data-action="reset-map">Reset</button>
         <a href="./" class="editor-play-link">Play</a>
@@ -567,6 +571,7 @@ export class MapEditor {
         <span>Notes</span>
         <input data-selected-field="notes" type="text" value="${escapeHtml(object.notes ?? '')}" />
       </label>
+      <button type="button" class="editor-secondary" data-action="duplicate-object">Duplicate Selected</button>
       <button type="button" class="editor-danger" data-action="delete-object">Delete Selected</button>
     `;
   }
@@ -907,6 +912,21 @@ export class MapEditor {
     this.selectedId = nextObject?.id ?? null;
     this.persistAndRender();
     this.setStatus('Deleted selected object.');
+  }
+
+  private duplicateSelected(): void {
+    const selected = this.getSelectedRecord();
+    if (!selected) return;
+
+    const duplicated = structuredClone(selected.object);
+    duplicated.id = this.makeUniqueId(`${selected.object.id}_copy`);
+    duplicated.position.x = round2(duplicated.position.x + 1.2);
+    duplicated.position.y = round2(duplicated.position.y + 1.2);
+
+    selected.zone.objects.splice(selected.index + 1, 0, duplicated);
+    this.selectedId = duplicated.id;
+    this.persistAndRender();
+    this.setStatus(`Duplicated ${selected.object.id} as ${duplicated.id}.`);
   }
 
   private resetMap(): void {

@@ -32,6 +32,10 @@ export function cloneDefaultSettings(): GameSettings {
   return structuredClone(DEFAULT_GAME_SETTINGS);
 }
 
+export function cloneDefaultChestPhysicsSettings(): ChestPhysicsSettings {
+  return structuredClone(DEFAULT_GAME_SETTINGS.chestPhysics);
+}
+
 export function loadGameSettings(): GameSettings {
   if (typeof window === 'undefined') return cloneDefaultSettings();
 

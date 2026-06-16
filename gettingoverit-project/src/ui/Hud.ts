@@ -1,6 +1,7 @@
 import type { Zone } from '../data/mapData';
 import type { HighscoreEntry } from '../data/scoreStore';
 import type { GameSettings } from '../data/settingsStore';
+import { canUseMapEditor } from '../utils/editorAccess';
 
 export type HudSettingKey =
   | 'hammerSensitivity'
@@ -14,6 +15,7 @@ export type HudSettingKey =
 export interface HudCallbacks {
   onToggleDebug: () => void;
   onResetRun: () => void;
+  onResetChestPhysics: () => void;
   onToggleMenu: () => void;
   onCloseMenu: () => void;
   onSubmitScore: () => void;
@@ -26,6 +28,7 @@ interface HudMenuState {
   visitCount: number;
   highscores: HighscoreEntry[];
   storageMode: 'local';
+  pendingScoreTimeMs: number | null;
   canSubmitScore: boolean;
   scoreSubmitting: boolean;
   scoreMessage: string;
@@ -41,6 +44,7 @@ export class Hud {
   private readonly debugButton: HTMLButtonElement;
   private readonly resetButton: HTMLButtonElement;
   private readonly menuButton: HTMLButtonElement;
+  private readonly creditLink: HTMLAnchorElement;
   private readonly menuOverlay: HTMLDivElement;
   private readonly callbacks: HudCallbacks;
 
@@ -71,6 +75,12 @@ export class Hud {
     this.debugButton = this.makeButton('hud-debug', 'Debug Collisions: Off', 'toggle-debug');
     this.resetButton = this.makeButton('hud-reset', 'Reset Run', 'reset-run');
     this.menuButton = this.makeButton('hud-menu', 'Menu (Esc)', 'toggle-menu');
+    this.creditLink = document.createElement('a');
+    this.creditLink.className = 'hud-credit';
+    this.creditLink.href = 'https://www.youtube.com/@DevManAI';
+    this.creditLink.target = '_blank';
+    this.creditLink.rel = 'noreferrer';
+    this.creditLink.textContent = 'Game Made By DevManAI';
 
     const hint = document.createElement('div');
     hint.className = 'hud-hint';
@@ -85,6 +95,7 @@ export class Hud {
       visitCount: 0,
       highscores: [],
       storageMode: 'local',
+      pendingScoreTimeMs: null,
       canSubmitScore: false,
       scoreSubmitting: false,
       scoreMessage: '',
@@ -102,6 +113,7 @@ export class Hud {
       this.debugButton,
       this.resetButton,
       this.menuButton,
+      this.creditLink,
       this.menuOverlay,
       hint,
     );
@@ -159,9 +171,10 @@ export class Hud {
     this.renderMenu();
   }
 
-  setPendingScore(canSubmitScore: boolean, message = ''): void {
+  setPendingScore(canSubmitScore: boolean, message = '', timeMs: number | null = null): void {
     this.menuState.canSubmitScore = canSubmitScore;
     this.menuState.scoreMessage = message;
+    this.menuState.pendingScoreTimeMs = timeMs;
     this.renderMenu();
   }
 
@@ -190,6 +203,9 @@ export class Hud {
         return;
       case 'reset-run':
         this.callbacks.onResetRun();
+        return;
+      case 'reset-chest-physics':
+        this.callbacks.onResetChestPhysics();
         return;
       case 'toggle-menu':
         this.callbacks.onToggleMenu();
@@ -222,13 +238,38 @@ export class Hud {
   private renderMenu(): void {
     const settings = this.menuState.settings;
     const scores = this.menuState.highscores;
+    const editorEnabled = canUseMapEditor();
     const storageHint = this.menuState.storageMode === 'local'
-      ? 'Scores and visits are currently stored on this device.'
+      ? 'This build stores scores locally. GitHub Pages can serve static files, but it cannot accept score writes by itself.'
       : 'Shared online leaderboard is connected.';
 
     this.menuOverlay.innerHTML = `
       <div class="hud-menu-backdrop ${this.menuState.open ? 'is-open' : ''}"></div>
       <section class="hud-menu-panel ${this.menuState.open ? 'is-open' : ''}">
+        ${this.menuState.canSubmitScore ? `
+          <section class="hud-finish-card">
+            <p class="hud-finish-eyebrow">Congrats</p>
+            <h2>You reached the flag.</h2>
+            <p class="hud-finish-time">${formatTime(this.menuState.pendingScoreTimeMs ?? 0)}</p>
+            <p class="hud-menu-note">Enter your name to add this run to the highscores on this device.</p>
+            <label class="hud-menu-field">
+              <span>Name</span>
+              <input data-setting="playerName" type="text" maxlength="24" value="${escapeHtml(settings.playerName)}" />
+            </label>
+            <div class="hud-menu-actions">
+              <button
+                type="button"
+                class="hud-menu-button hud-menu-button-accent"
+                data-action="submit-score"
+                ${this.menuState.scoreSubmitting ? 'disabled' : ''}
+              >
+                ${this.menuState.scoreSubmitting ? 'Saving...' : 'Save To Highscores'}
+              </button>
+              <button type="button" class="hud-menu-button" data-action="reset-run">Start New Run</button>
+            </div>
+            ${this.menuState.scoreMessage ? `<p class="hud-menu-note">${escapeHtml(this.menuState.scoreMessage)}</p>` : ''}
+          </section>
+        ` : ''}
         <div class="hud-menu-header">
           <div>
             <h2>Menu</h2>
@@ -250,32 +291,13 @@ export class Hud {
             </div>
             <div class="hud-menu-actions">
               <button type="button" class="hud-menu-button hud-menu-button-primary" data-action="reset-run">Reset Run</button>
-              <a href="./editor" class="hud-menu-link">Open Editor</a>
+              ${editorEnabled ? '<a href="./editor" class="hud-menu-link">Open Editor</a>' : ''}
             </div>
-            ${this.menuState.canSubmitScore ? `
-              <div class="hud-score-submit">
-                <h4>Submit Winning Time</h4>
-                <label class="hud-menu-field">
-                  <span>Name</span>
-                  <input data-setting="playerName" type="text" maxlength="24" value="${escapeHtml(settings.playerName)}" />
-                </label>
-                <button
-                  type="button"
-                  class="hud-menu-button hud-menu-button-accent"
-                  data-action="submit-score"
-                  ${this.menuState.scoreSubmitting ? 'disabled' : ''}
-                >
-                  ${this.menuState.scoreSubmitting ? 'Saving...' : 'Save Highscore'}
-                </button>
-                ${this.menuState.scoreMessage ? `<p class="hud-menu-note">${escapeHtml(this.menuState.scoreMessage)}</p>` : ''}
-              </div>
-            ` : `
-              <label class="hud-menu-field">
-                <span>Name</span>
-                <input data-setting="playerName" type="text" maxlength="24" value="${escapeHtml(settings.playerName)}" />
-              </label>
-              ${this.menuState.scoreMessage ? `<p class="hud-menu-note">${escapeHtml(this.menuState.scoreMessage)}</p>` : ''}
-            `}
+            <label class="hud-menu-field">
+              <span>Name</span>
+              <input data-setting="playerName" type="text" maxlength="24" value="${escapeHtml(settings.playerName)}" />
+            </label>
+            ${this.menuState.scoreMessage && !this.menuState.canSubmitScore ? `<p class="hud-menu-note">${escapeHtml(this.menuState.scoreMessage)}</p>` : ''}
           </section>
 
           <section class="hud-menu-card">
@@ -317,6 +339,7 @@ export class Hud {
               <span>Mass <strong>${settings.chestPhysics.mass.toFixed(2)}</strong></span>
               <input data-setting="chestMass" type="range" min="0.05" max="2.5" step="0.05" value="${settings.chestPhysics.mass}" />
             </label>
+            <button type="button" class="hud-menu-button" data-action="reset-chest-physics">Reset Chest Physics</button>
           </section>
 
           <section class="hud-menu-card hud-menu-card-scores">

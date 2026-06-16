@@ -46,10 +46,10 @@ export class CharacterRig {
     root.position.y = MODEL.yOffset;
     root.rotation.y = MODEL.faceRotationY;
 
-    // Grip target reaches out to the finger root (middle_01_*), not the wrist
-    // (hand_*), so the hammer sits in the hand rather than through the palm.
-    this.rightArm = this.makeArm('upperarm_r', 'lowerarm_r', 'hand_r', 'middle_01_r');
-    this.leftArm = this.makeArm('upperarm_l', 'lowerarm_l', 'hand_l', 'middle_01_l');
+    // Drive the wrist bones directly. This keeps the arm chain much more
+    // stable than targeting finger roots on this specific rig.
+    this.rightArm = this.makeArm('upperarm_r', 'lowerarm_r', 'hand_r');
+    this.leftArm = this.makeArm('upperarm_l', 'lowerarm_l', 'hand_l');
 
     this.breast = new BreastPhysics(root, {
       boneNames: BREAST.boneNames as unknown as string[],

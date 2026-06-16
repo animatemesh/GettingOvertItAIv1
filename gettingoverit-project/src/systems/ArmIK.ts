@@ -33,6 +33,11 @@ export class ArmIK {
   private L2 = 0; // lower -> grip  (world rest length)
   private readonly fwdUpper = new Vector3(0, 1, 0);
   private readonly fwdLower = new Vector3(0, 1, 0);
+  private readonly bindUpperQuat = new Quaternion();
+  private readonly bindLowerQuat = new Quaternion();
+  private readonly bindUpperDir = new Vector3(0, 1, 0);
+  private readonly bindLowerDir = new Vector3(0, 1, 0);
+  private readonly delta = new Quaternion();
 
   // Scratch (no per-frame allocation).
   private readonly pUpper = new Vector3();
@@ -72,6 +77,11 @@ export class ArmIK {
     this.fwdLower.copy(this.hand.position).normalize();
     if (this.fwdUpper.lengthSq() < 1e-8) this.fwdUpper.set(0, 1, 0);
     if (this.fwdLower.lengthSq() < 1e-8) this.fwdLower.set(0, 1, 0);
+
+    this.bindUpperQuat.copy(this.upper.quaternion);
+    this.bindLowerQuat.copy(this.lower.quaternion);
+    this.bindUpperDir.copy(this.fwdUpper).applyQuaternion(this.bindUpperQuat).normalize();
+    this.bindLowerDir.copy(this.fwdLower).applyQuaternion(this.bindLowerQuat).normalize();
 
     this.inited = true;
   }
@@ -123,7 +133,7 @@ export class ArmIK {
   }
 
   /** Rotate `bone` so its local forward axis points along `worldDir`. */
-  private aim(bone: Bone, fwdLocal: Vector3, worldDir: Vector3): void {
+  private aim(bone: Bone, _fwdLocal: Vector3, worldDir: Vector3): void {
     const parent = bone.parent;
     if (!parent) return;
     parent.updateWorldMatrix(true, false);
@@ -131,9 +141,13 @@ export class ArmIK {
     this.qParentInv.copy(this.qParent).invert();
 
     // Express the desired direction in the parent's frame, then find the
-    // minimal rotation taking the bind forward axis to it.
+    // minimal rotation taking the bind forward axis to it while preserving the
+    // bone's bind-space twist/orientation.
     this.dLocal.copy(worldDir).applyQuaternion(this.qParentInv).normalize();
-    bone.quaternion.setFromUnitVectors(fwdLocal, this.dLocal);
+    const bindQuat = bone === this.upper ? this.bindUpperQuat : this.bindLowerQuat;
+    const bindDir = bone === this.upper ? this.bindUpperDir : this.bindLowerDir;
+    this.delta.setFromUnitVectors(bindDir, this.dLocal);
+    bone.quaternion.copy(this.delta).multiply(bindQuat);
     bone.updateMatrix();
     bone.updateWorldMatrix(false, true);
   }

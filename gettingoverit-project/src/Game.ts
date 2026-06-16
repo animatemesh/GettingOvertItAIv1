@@ -27,6 +27,7 @@ import {
   type ScoreboardState,
 } from './data/scoreStore';
 import {
+  cloneDefaultChestPhysicsSettings,
   loadGameSettings,
   saveGameSettings,
   type ChestPhysicsSettings,
@@ -61,6 +62,7 @@ export class Game {
         this.hud.setDebugEnabled(enabled);
       },
       onResetRun: () => this.resetRun(),
+      onResetChestPhysics: () => this.resetChestPhysics(),
       onToggleMenu: () => this.setMenuOpen(!this.menuOpen),
       onCloseMenu: () => this.setMenuOpen(false),
       onSubmitScore: () => this.submitCurrentScore(),
@@ -94,6 +96,7 @@ export class Game {
       camera: this.engine.camera,
       domElement: this.engine.renderer.domElement,
       hammerBody: this.player.hammerBody,
+      cauldronBody: this.player.cauldronBody,
       headLocalOffset: this.player.headLocalOffset,
       getPivot: () => this.player.getGripPivot(this.pivot),
       getReach: () => this.player.hammerReach,
@@ -162,9 +165,12 @@ export class Game {
   private finishRun(): void {
     this.finishedTimeMs = this.elapsedMs;
     this.hud.showWin();
-    this.hud.setPendingScore(true, 'Reached the flag. Saving your time to the leaderboard...');
+    this.hud.setPendingScore(
+      true,
+      'Global highscores still need a small write backend. For now this saves on the current device.',
+      this.finishedTimeMs,
+    );
     this.setMenuOpen(true);
-    this.submitCurrentScore();
   }
 
   private submitCurrentScore(): void {
@@ -179,7 +185,7 @@ export class Game {
         this.scoreboard.highscores,
         this.scoreboard.storageMode,
       );
-      this.hud.setPendingScore(false, 'Highscore saved on this device.');
+      this.hud.setPendingScore(false, 'Run saved to local highscores.', null);
     } finally {
       this.hud.setScoreSubmitting(false);
     }
@@ -198,7 +204,7 @@ export class Game {
     this.engine.syncClock();
 
     this.hud.resetWin();
-    this.hud.setPendingScore(false, '');
+    this.hud.setPendingScore(false, '', null);
     this.setMenuOpen(false);
 
     this.player.getFocus(this.focus);
@@ -249,6 +255,12 @@ export class Game {
     }
 
     this.applySettings();
+  }
+
+  private resetChestPhysics(): void {
+    this.settings.chestPhysics = cloneDefaultChestPhysicsSettings();
+    this.applySettings();
+    this.hud.setSettings(this.settings);
   }
 
   private applySettings(): void {

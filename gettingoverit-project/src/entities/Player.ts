@@ -49,6 +49,7 @@ export class Player {
   private shaftMesh!: THREE.Mesh;
   private headMesh!: THREE.Mesh;
   private clawMesh!: THREE.Mesh;
+  private buttMesh!: THREE.Mesh;
 
   // Scratch.
   private readonly hq = new THREE.Quaternion();
@@ -57,11 +58,10 @@ export class Player {
   private readonly leftGrip = new THREE.Vector3();
   private readonly rightPole = new THREE.Vector3();
   private readonly leftPole = new THREE.Vector3();
-  private readonly rightGripRatio = MODEL.rightGripLocal.y / HAMMER.handleLength;
-  private readonly leftGripRatio = MODEL.leftGripLocal.y / HAMMER.handleLength;
   private readonly rGripLocal = new THREE.Vector3(MODEL.rightGripLocal.x, MODEL.rightGripLocal.y, MODEL.rightGripLocal.z);
   private readonly lGripLocal = new THREE.Vector3(MODEL.leftGripLocal.x, MODEL.leftGripLocal.y, MODEL.leftGripLocal.z);
-  private readonly poleOffset = new THREE.Vector3(MODEL.poleOffset.x, MODEL.poleOffset.y, MODEL.poleOffset.z);
+  private readonly rightPoleOffset = new THREE.Vector3(MODEL.rightPoleOffset.x, MODEL.rightPoleOffset.y, MODEL.rightPoleOffset.z);
+  private readonly leftPoleOffset = new THREE.Vector3(MODEL.leftPoleOffset.x, MODEL.leftPoleOffset.y, MODEL.leftPoleOffset.z);
 
   constructor(scene: THREE.Scene, world: RAPIER.World, start: Vec2) {
     this.scene = scene;
@@ -74,6 +74,7 @@ export class Player {
       .setAngularDamping(CAULDRON.angularDamping)
       .setCcdEnabled(true);
     this.cauldronBody = world.createRigidBody(cauldronDesc);
+    this.cauldronBody.setAdditionalSolverIterations(4);
 
     const cauldronCol = RAPIER.ColliderDesc.capsule(CAULDRON.halfHeight, CAULDRON.radius)
       .setTranslation(0, CAULDRON.colliderOffsetY, 0)
@@ -92,10 +93,12 @@ export class Player {
       .setAngularDamping(HAMMER.angularDamping)
       .setCcdEnabled(true);
     this.hammerBody = world.createRigidBody(hammerDesc);
+    this.hammerBody.setAdditionalSolverIterations(4);
 
     const handleCol = RAPIER.ColliderDesc.capsule(this.getHandleHalfHeight(this.currentReach), HAMMER.handleRadius)
       .setTranslation(0, this.currentReach * 0.5, 0)
-      .setFriction(0.4)
+      // Let the shaft glance off geometry so the head remains the primary tool.
+      .setFriction(0.08)
       .setMass(Math.max(HAMMER.mass - HAMMER.headMass, 0.1))
       .setCollisionGroups(PLAYER_GROUPS)
       .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
@@ -179,16 +182,13 @@ export class Player {
     this.hq.set(hr.x, hr.y, hr.z, hr.w);
     this.htv.set(ht.x, ht.y, ht.z);
 
-    this.rGripLocal.y = this.currentReach * this.rightGripRatio;
-    this.lGripLocal.y = this.currentReach * this.leftGripRatio;
-
     this.rightGrip.copy(this.rGripLocal).applyQuaternion(this.hq).add(this.htv);
     this.leftGrip.copy(this.lGripLocal).applyQuaternion(this.hq).add(this.htv);
     this.rightGrip.z += HAMMER_VISUAL_Z;
     this.leftGrip.z += HAMMER_VISUAL_Z;
 
-    this.rightPole.copy(this.rightGrip).add(this.poleOffset);
-    this.leftPole.copy(this.leftGrip).add(this.poleOffset);
+    this.rightPole.copy(this.rightGrip).add(this.rightPoleOffset);
+    this.leftPole.copy(this.leftGrip).add(this.leftPoleOffset);
 
     this.rig.update(dt, this.rightGrip, this.rightPole, this.leftGrip, this.leftPole);
   }
@@ -250,19 +250,29 @@ export class Player {
     this.clawMesh.castShadow = true;
     g.add(this.clawMesh);
 
+    this.buttMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(HAMMER.handleRadius * 1.1, HAMMER.handleRadius * 1.25, 0.18, 10),
+      shaftMat,
+    );
+    this.buttMesh.castShadow = true;
+    g.add(this.buttMesh);
+
     this.layoutHammerMesh();
     return g;
   }
 
   private layoutHammerMesh(): void {
-    if (!this.shaftMesh || !this.headMesh || !this.clawMesh) return;
+    if (!this.shaftMesh || !this.headMesh || !this.clawMesh || !this.buttMesh) return;
 
     const he = HAMMER.headHalfExtents;
-    this.shaftMesh.position.y = this.currentReach * 0.5;
-    this.shaftMesh.scale.set(1, this.currentReach, 1);
+    const rearReach = HAMMER.rearVisualLength + (HAMMER.handleLength - this.currentReach);
+    const totalVisualLength = rearReach + this.currentReach;
+    this.shaftMesh.position.y = (this.currentReach - rearReach) * 0.5;
+    this.shaftMesh.scale.set(1, totalVisualLength, 1);
 
     this.headMesh.position.y = this.currentReach;
     this.clawMesh.position.set(-he.x * 0.9, this.currentReach + he.y * 0.6, 0);
+    this.buttMesh.position.y = -rearReach;
   }
 
   private getHandleHalfHeight(reach: number): number {

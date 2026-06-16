@@ -34,8 +34,9 @@ export const PLANE_Z = 0;
 /* -------------------------------------------------------------------------- */
 
 export const CAULDRON = {
-  /** Base weight. Lighter than a true GOI pot so the climb is more forgiving. */
-  mass: 8.0,
+  /** Base weight. Lighter than a true GOI pot so the climb is more forgiving
+   *  and the hammer press has enough authority to scoot/vault the body. */
+  mass: 6.5,
   /** Mid friction at the base so it grips rests but can still slide off. */
   friction: 0.7,
   restitution: 0.0,
@@ -65,6 +66,8 @@ export const HAMMER = {
   angularDamping: 1.2,
   /** Length of the handle from grip pivot to the head. */
   handleLength: 2.4,
+  /** Visible shaft kept behind the grip so the handle does not collapse visually. */
+  rearVisualLength: 0.72,
   /** Handle radius (thin shaft). */
   handleRadius: 0.07,
   /** Half-extents of the blocky Yosemite-style hammer head. */
@@ -77,21 +80,32 @@ export const HAMMER = {
 
 export const STEERING = {
   /** Proportional gain pulling the head toward the cursor target. */
-  kp: 260.0,
+  kp: 360.0,
   /** Derivative gain damping the head velocity (prevents jitter/overshoot). */
-  kd: 30.0,
+  kd: 34.0,
   /** Maximum steering force magnitude so the hammer can't teleport. */
   maxForce: 1300.0,
+  /** Extra push authority while the hammer is already in terrain contact. */
+  anchorForceBoost: 1.18,
+  /**
+   * Fraction of the steering force fed back onto the body as a -F reaction
+   * (the "internal force pair"). MUST be 1.0: only a fully balanced pair
+   * conserves momentum so that swinging the hammer in FREE AIR can't fling or
+   * levitate the body — it only jostles via momentum. When the head braces on
+   * terrain, the terrain supplies an external force and this -F is freed to
+   * translate the body (push off / vault / pull). Lowering it reintroduces the
+   * levitation/fling bug. Validated headless in scripts/physics-test.mjs.
+   */
+  bodyReaction: 1.0,
   /**
    * Outer radius of the cursor's reach DISC, measured from the grip pivot.
-   * Set to the hammer's rod length so a clamped target is always reachable in
-   * direction (the head can rotate to any boundary point), keeping the PD
-   * error bounded and avoiding the outward-saturation levitation bug. The
-   * cursor may also aim anywhere INSIDE this disc, giving the head's PD force
-   * a radial component for pressing into / pulling off terrain — the core of
-   * vaulting and hooking (pushing yourself up).
+   * Deliberately LARGER than the hammer's physical reach (handleLength) so the
+   * cursor can command a target PAST the head's planted position; that gap is
+   * the position error the PD turns into press force, which gives vaulting and
+   * pushing real authority. Free-air levitation is prevented by the force pair
+   * (`bodyReaction`), NOT by clamping reach, so this can safely exceed reach.
    */
-  maxReach: HAMMER.handleLength,
+  maxReach: HAMMER.handleLength * 1.7,
   anchorOverreach: 0.6,
   /**
    * Inner radius of the reach disc (a small dead zone): the head can't be
@@ -126,6 +140,18 @@ export const LEVERAGE = {
   maxImpulse: 20.0,
   /** A contact counts as an "anchor" only when pressed harder than this (N). */
   anchorForceThreshold: 6.0,
+  /** Grip assist fades in only on surfaces that still face upward at least this much. */
+  surfaceAssistMinUpness: 0.08,
+  /** Full assist on ledges / slopes whose normal points upward this much or more. */
+  surfaceAssistFullUpness: 0.58,
+  /** Extra tangential hold on ledges so the hammer stops skating off usable rests. */
+  surfaceGripBoost: 2.1,
+  /** Lower anchor threshold on friendly ledges, but never enough for wall-climbing. */
+  surfaceAnchorThresholdScale: 0.52,
+  /** Small tangent-damping impulse that helps the head settle onto ledges. */
+  surfaceStickImpulseScale: 0.34,
+  /** Hard cap on the per-substep stick impulse. */
+  surfaceStickMaxImpulse: 0.28,
 } as const;
 
 /* -------------------------------------------------------------------------- */
@@ -159,10 +185,12 @@ export const MODEL = {
   /** Yaw (radians) to face the model toward the camera (+Z). */
   faceRotationY: 0,
   /** Grip points on the hammer handle (hammer-local; handle is +Y, 0..length). */
-  rightGripLocal: { x: 0.02, y: 0.55, z: 0.0 },
-  leftGripLocal: { x: -0.02, y: 0.86, z: 0.0 },
-  /** Elbow pole bias added to a hand target (world): toward camera + down. */
-  poleOffset: { x: 0.0, y: -0.5, z: 1.2 },
+  rightGripLocal: { x: 0.03, y: 0.1, z: 0.0 },
+  leftGripLocal: { x: -0.03, y: 0.34, z: 0.0 },
+  /** Elbow pole bias added to the right hand target (world). */
+  rightPoleOffset: { x: 0.55, y: -0.1, z: 1.05 },
+  /** Elbow pole bias added to the left hand target (world). */
+  leftPoleOffset: { x: -0.55, y: -0.1, z: 1.05 },
 } as const;
 
 /** Breast secondary-motion settings (ported from breast-physics.json). */

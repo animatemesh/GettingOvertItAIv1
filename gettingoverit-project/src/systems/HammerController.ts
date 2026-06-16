@@ -19,6 +19,8 @@ export interface HammerControllerOpts {
   camera: THREE.PerspectiveCamera;
   domElement: HTMLElement;
   hammerBody: RAPIER.RigidBody;
+  /** The cauldron body, used for the -F reaction of the internal force pair. */
+  cauldronBody: RAPIER.RigidBody;
   /** Offset from the hammer body origin to the head point, in body-local space. */
   headLocalOffset: THREE.Vector3;
   /** Returns the cauldron grip pivot (world XY) the handle extends from. */
@@ -35,6 +37,7 @@ export class HammerController {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly domElement: HTMLElement;
   private readonly body: RAPIER.RigidBody;
+  private readonly cauldron: RAPIER.RigidBody;
   private readonly headLocalOffset: THREE.Vector3;
   private readonly getPivot: () => THREE.Vector2;
   private readonly getReach: () => number;
@@ -69,6 +72,7 @@ export class HammerController {
     this.camera = opts.camera;
     this.domElement = opts.domElement;
     this.body = opts.hammerBody;
+    this.cauldron = opts.cauldronBody;
     this.headLocalOffset = opts.headLocalOffset;
     this.getPivot = opts.getPivot;
     this.getReach = opts.getReach;
@@ -196,17 +200,21 @@ export class HammerController {
    */
   update(dt: number): void {
     // Rapier force accumulators persist across steps until reset. Clear the
-    // last substep's steering force and torque before applying this one.
+    // last substep's steering force/torque on BOTH bodies before applying this
+    // one (the cauldron carries the -F reaction of the internal force pair).
     this.body.resetForces(false);
     this.body.resetTorques(false);
+    this.cauldron.resetForces(false);
+    this.cauldron.resetTorques(false);
 
     this.updateTarget();
     this.updateReach(dt);
     this.computeHeadWorld();
     this.computeHeadVelocity();
 
-    const gainScale = this.sensitivity;
-    const dampingScale = Math.sqrt(this.sensitivity);
+    const anchorBoost = this.canOverdrive() ? STEERING.anchorForceBoost : 1;
+    const gainScale = this.sensitivity * anchorBoost;
+    const dampingScale = Math.sqrt(this.sensitivity * anchorBoost);
     this.tmpForce.set(
       STEERING.kp * gainScale * (this.targetWorld.x - this.headWorld.x) - STEERING.kd * dampingScale * this.tmpHeadVel.x,
       STEERING.kp * gainScale * (this.targetWorld.y - this.headWorld.y) - STEERING.kd * dampingScale * this.tmpHeadVel.y,
@@ -220,7 +228,15 @@ export class HammerController {
     }
 
     this.steerForce.copy(this.tmpForce);
+
+    // Internal force pair: +F drives the head, -F reacts on the cauldron. In
+    // free air the net system force is zero (momentum is conserved, so the body
+    // can't be levitated/flung by swinging the hammer); when the head braces on
+    // terrain the external contact force frees this -F to translate the body —
+    // pushing off, vaulting and pulling all emerge from real contact reactions.
     this.body.addForceAtPoint(this.tmpForce, this.headWorld, true);
+    const r = STEERING.bodyReaction;
+    this.cauldron.addForce({ x: -this.tmpForce.x * r, y: -this.tmpForce.y * r, z: 0 }, true);
   }
 
   /** Whether the pointer is currently over the canvas (for HUD/feedback). */
