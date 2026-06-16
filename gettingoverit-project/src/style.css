@@ -1,0 +1,121 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #1a1714;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+}
+
+#app canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  cursor: crosshair;
+}
+
+/* ---- HUD overlay ---- */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  color: #f3efe9;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.hud-zone {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.hud-height {
+  position: absolute;
+  top: 48px;
+  left: 22px;
+  font-size: 15px;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-anchor {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  opacity: 0.35;
+  transition: all 0.1s ease;
+}
+
+.hud-anchor.on {
+  opacity: 1;
+  color: #1a1714;
+  background: #ffcf66;
+  border-color: #ffcf66;
+  box-shadow: 0 0 18px rgba(255, 207, 102, 0.7);
+}
+
+.hud-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.55;
+}
+
+.hud-banner {
+  position: absolute;
+  top: 42%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 34px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.hud-banner.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fatal {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: 90vw;
+  white-space: pre-wrap;
+  color: #ff8b8b;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}

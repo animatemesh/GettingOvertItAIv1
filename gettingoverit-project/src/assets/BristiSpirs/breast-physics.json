@@ -1,0 +1,19 @@
+{
+  "format": "animatemesh-breast-physics-v1",
+  "baked_glb_file": "exported-model-baked.glb",
+  "runtime_glb_file": "exported-model-runtime.glb",
+  "runtime_script_file": "breast-physics-runtime.js",
+  "bone_names": [
+    "breast_l",
+    "breast_r"
+  ],
+  "settings": {
+    "enabled": true,
+    "stiffness": 100,
+    "damping": 4,
+    "gravity": -1,
+    "mass": 0.1
+  },
+  "baked_into_glb": true,
+  "sample_fps": 60
+}
