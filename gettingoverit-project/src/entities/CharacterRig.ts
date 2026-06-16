@@ -81,7 +81,7 @@ export class CharacterRig {
     if (grip && !g) {
       console.warn(`CharacterRig: missing grip bone ${grip}, falling back to ${hand}`);
     }
-    return new ArmIK(u, l, h, g, MODEL.handGripExtension, { lockUpper: true });
+    return new ArmIK(u, l, h, g, MODEL.handGripExtension, { upperInfluence: MODEL.upperArmIkInfluence });
   }
 
   private widenShoulders(): void {

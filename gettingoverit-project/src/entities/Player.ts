@@ -60,6 +60,8 @@ export class Player {
   private readonly tmpHeadW = new THREE.Vector3();
   private readonly rightGrip = new THREE.Vector3();
   private readonly leftGrip = new THREE.Vector3();
+  private readonly rightGripLocalCurrent = new THREE.Vector3();
+  private readonly leftGripLocalCurrent = new THREE.Vector3();
   private readonly rightPole = new THREE.Vector3();
   private readonly leftPole = new THREE.Vector3();
   private readonly rGripLocal = new THREE.Vector3(MODEL.rightGripLocal.x, MODEL.rightGripLocal.y, MODEL.rightGripLocal.z);
@@ -225,11 +227,22 @@ export class Player {
       this.leftHandLowOnShaft = false;
     }
 
-    const rightGripLocal = this.leftHandLowOnShaft ? this.lGripLocal : this.rGripLocal;
-    const leftGripLocal = this.leftHandLowOnShaft ? this.rGripLocal : this.lGripLocal;
+    const lowGripY = Math.min(this.rGripLocal.y, this.lGripLocal.y);
+    const highGripY = Math.max(this.rGripLocal.y, this.lGripLocal.y);
 
-    this.rightGrip.copy(rightGripLocal).applyQuaternion(this.hq).add(this.htv);
-    this.leftGrip.copy(leftGripLocal).applyQuaternion(this.hq).add(this.htv);
+    this.rightGripLocalCurrent.set(
+      this.rGripLocal.x,
+      this.leftHandLowOnShaft ? highGripY : lowGripY,
+      this.rGripLocal.z,
+    );
+    this.leftGripLocalCurrent.set(
+      this.lGripLocal.x,
+      this.leftHandLowOnShaft ? lowGripY : highGripY,
+      this.lGripLocal.z,
+    );
+
+    this.rightGrip.copy(this.rightGripLocalCurrent).applyQuaternion(this.hq).add(this.htv);
+    this.leftGrip.copy(this.leftGripLocalCurrent).applyQuaternion(this.hq).add(this.htv);
     this.rightGrip.z += HAMMER_VISUAL_Z;
     this.leftGrip.z += HAMMER_VISUAL_Z;
 

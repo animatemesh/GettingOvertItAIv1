@@ -184,18 +184,21 @@ export const MODEL = {
   /** Extra outward offset applied to the clavicles so the shoulders read wider. */
   shoulderSpreadX: 0,
   /** Downward resting pose applied on the upper arms, not the clavicles. */
-  upperArmDownDeg: 30,
+  upperArmDownDeg: 12,
+  /** 0 = upper arms stay at bind pose, 1 = full IK. A soft value keeps the
+   *  pose attractive while still letting both hands stay attached. */
+  upperArmIkInfluence: 0.4,
   /** Vertical offset so the legless torso sits down inside the pot. */
   yOffset: -0.25,
   /** Yaw (radians) to face the model toward the camera (+Z). */
   faceRotationY: 0,
   /** Grip points on the hammer handle (hammer-local; handle is +Y, 0..length).
    *  Spread a little so the two hands sit apart on the shaft, not overlapping. */
-  rightGripLocal: { x: 0.04, y: -0.02, z: 0.0 },
-  leftGripLocal: { x: -0.04, y: 0.68, z: 0.0 },
+  rightGripLocal: { x: 0.0, y: 0.08, z: 0.0 },
+  leftGripLocal: { x: 0.0, y: 0.86, z: 0.0 },
   /** Extend the effective hand target a bit past the finger root so the hammer
    *  visually sits nearer the end of the hand instead of the wrist/palm. */
-  handGripExtension: 0.11,
+  handGripExtension: 0.08,
   /** Elbow pole bias added to the right hand target (world). Pushes the elbow
    *  DOWN and OUT (and slightly forward) so the forearm clears the torso/chest
    *  instead of folding into it. */
