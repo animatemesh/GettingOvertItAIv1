@@ -183,6 +183,8 @@ export const MODEL = {
   scale: 1.7,
   /** Extra outward offset applied to the clavicles so the shoulders read wider. */
   shoulderSpreadX: 0,
+  /** Downward resting pose applied on the upper arms, not the clavicles. */
+  upperArmDownDeg: 30,
   /** Vertical offset so the legless torso sits down inside the pot. */
   yOffset: -0.25,
   /** Yaw (radians) to face the model toward the camera (+Z). */

@@ -17,6 +17,8 @@ import { BreastPhysics } from '../systems/BreastPhysics';
 import { MODEL, BREAST } from '../data/config';
 import type { ChestPhysicsSettings } from '../data/settingsStore';
 
+const DEG2RAD = Math.PI / 180;
+
 export class CharacterRig {
   root: THREE.Object3D | null = null;
   ready = false;
@@ -83,14 +85,20 @@ export class CharacterRig {
   }
 
   private widenShoulders(): void {
-    const left = this.bones.get('clavicle_l');
-    const right = this.bones.get('clavicle_r');
-    if (!left || !right) return;
+    const clavicleL = this.bones.get('clavicle_l');
+    const clavicleR = this.bones.get('clavicle_r');
+    const upperL = this.bones.get('upperarm_l');
+    const upperR = this.bones.get('upperarm_r');
+    if (!clavicleL || !clavicleR || !upperL || !upperR) return;
 
-    left.position.x += MODEL.shoulderSpreadX;
-    right.position.x -= MODEL.shoulderSpreadX;
-    left.updateMatrix();
-    right.updateMatrix();
+    clavicleL.position.x += MODEL.shoulderSpreadX;
+    clavicleR.position.x -= MODEL.shoulderSpreadX;
+    upperL.rotation.z -= MODEL.upperArmDownDeg * DEG2RAD;
+    upperR.rotation.z += MODEL.upperArmDownDeg * DEG2RAD;
+    clavicleL.updateMatrix();
+    clavicleR.updateMatrix();
+    upperL.updateMatrix();
+    upperR.updateMatrix();
   }
 
   /** Pose arms to the hammer grips and advance breast secondary motion. */
