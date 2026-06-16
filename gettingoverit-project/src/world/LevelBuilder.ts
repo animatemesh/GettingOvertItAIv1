@@ -437,10 +437,29 @@ export class LevelBuilder {
   private addCatchFloor(map: ClimbMap): void {
     const width = map.worldBounds.maxX - map.worldBounds.minX + 20;
     const cx = (map.worldBounds.maxX + map.worldBounds.minX) / 2;
+    const halfHeight = 1;
+    const halfDepth = 4;
+    const ground = new THREE.Mesh(
+      new THREE.BoxGeometry(width, halfHeight * 2, halfDepth * 2),
+      new THREE.MeshStandardMaterial({ color: 0x5a4d39, roughness: 1.0, metalness: 0.02 }),
+    );
+    ground.position.set(cx, -3, 0);
+    ground.receiveShadow = true;
+    ground.castShadow = true;
+    this.root.add(ground);
+
+    const moss = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.995, 0.24, halfDepth * 2.04),
+      this.mossMat(),
+    );
+    moss.position.set(cx, -1.88, 0);
+    moss.receiveShadow = true;
+    moss.castShadow = true;
+    this.root.add(moss);
     const body = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.fixed().setTranslation(cx, -3, 0),
     );
-    const desc = RAPIER.ColliderDesc.cuboid(width / 2, 0.5, 6)
+    const desc = RAPIER.ColliderDesc.cuboid(width / 2, halfHeight, halfDepth)
       .setFriction(0.6)
       .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
     this.register(this.world.createCollider(desc, body));

@@ -22,6 +22,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { CharacterRig } from './CharacterRig';
 import { CAULDRON, HAMMER, MODEL, PLANE_Z } from '../data/config';
 import type { Vec2 } from '../data/mapData';
+import type { ChestPhysicsSettings } from '../data/settingsStore';
 import modelUrl from '../assets/BristiSpirs/exported-model-runtime.glb';
 
 const GROUP_TERRAIN = 0x0001;
@@ -190,6 +191,29 @@ export class Player {
     this.leftPole.copy(this.leftGrip).add(this.poleOffset);
 
     this.rig.update(dt, this.rightGrip, this.rightPole, this.leftGrip, this.leftPole);
+  }
+
+  applyChestSettings(settings: ChestPhysicsSettings): void {
+    this.rig.applyBreastSettings(settings);
+  }
+
+  resetTo(start: Vec2): void {
+    this.setHammerReach(HAMMER.handleLength);
+
+    this.cauldronBody.setTranslation({ x: start.x, y: start.y, z: PLANE_Z }, false);
+    this.cauldronBody.setRotation({ x: 0, y: 0, z: 0, w: 1 }, false);
+    this.cauldronBody.setLinvel({ x: 0, y: 0, z: 0 }, false);
+    this.cauldronBody.setAngvel({ x: 0, y: 0, z: 0 }, false);
+
+    this.hammerBody.setTranslation({ x: start.x, y: start.y + GRIP_OFFSET_Y, z: PLANE_Z }, false);
+    this.hammerBody.setRotation({ x: 0, y: 0, z: 0, w: 1 }, false);
+    this.hammerBody.setLinvel({ x: 0, y: 0, z: 0 }, false);
+    this.hammerBody.setAngvel({ x: 0, y: 0, z: 0 }, false);
+
+    this.cauldronBody.wakeUp();
+    this.hammerBody.wakeUp();
+    this.rig.resetSecondaryMotion();
+    this.syncBodies();
   }
 
   private syncBodies(): void {

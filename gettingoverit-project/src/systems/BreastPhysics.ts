@@ -41,10 +41,10 @@ function num(value: unknown, fallback: number, min = -Infinity): number {
 export class BreastPhysics {
   private readonly root: Object3D;
   enabled: boolean;
-  private readonly stiffness: number;
-  private readonly damping: number;
-  private readonly gravity: number;
-  private readonly mass: number;
+  private stiffness: number;
+  private damping: number;
+  private gravity: number;
+  private mass: number;
 
   private states: BoneState[] = [];
 
@@ -62,6 +62,18 @@ export class BreastPhysics {
     this.mass = num(config.mass, 1, 0.05);
     this.enabled = config.enabled !== false;
     this.register(config.boneNames ?? DEFAULT_BONE_NAMES);
+  }
+
+  applyConfig(config: BreastPhysicsConfig): void {
+    if (typeof config.enabled === 'boolean') this.enabled = config.enabled;
+    if (config.stiffness != null) this.stiffness = num(config.stiffness, this.stiffness, 0);
+    if (config.damping != null) this.damping = num(config.damping, this.damping, 0);
+    if (config.gravity != null) this.gravity = num(config.gravity, this.gravity);
+    if (config.mass != null) this.mass = num(config.mass, this.mass, 0.05);
+
+    if (!this.enabled) {
+      this.reset();
+    }
   }
 
   /** Find the requested bones under the root and snapshot their bind pose. */

@@ -27,6 +27,8 @@ export interface HammerControllerOpts {
   getReach: () => number;
   /** Applies a new hammer reach to the player visuals and colliders. */
   setReach: (reach: number) => void;
+  /** True while terrain contact is active, allowing extra push-overreach. */
+  canOverdrive: () => boolean;
 }
 
 export class HammerController {
@@ -37,6 +39,7 @@ export class HammerController {
   private readonly getPivot: () => THREE.Vector2;
   private readonly getReach: () => number;
   private readonly setReach: (reach: number) => void;
+  private readonly canOverdrive: () => boolean;
 
   /** Pointer position in normalised device coordinates [-1, 1]. */
   private readonly ndc = new THREE.Vector2(0, 0.2);
@@ -59,6 +62,8 @@ export class HammerController {
   private readonly tmpHeadVel = new THREE.Vector3();
   private readonly tmpR = new THREE.Vector3();
   private readonly tmpForce = new THREE.Vector3();
+  private readonly aimNdc = new THREE.Vector2();
+  private sensitivity = 1;
 
   constructor(opts: HammerControllerOpts) {
     this.camera = opts.camera;
@@ -68,6 +73,7 @@ export class HammerController {
     this.getPivot = opts.getPivot;
     this.getReach = opts.getReach;
     this.setReach = opts.setReach;
+    this.canOverdrive = opts.canOverdrive;
 
     this.currentReach = this.getReach();
     this.desiredReach = this.currentReach;
@@ -75,6 +81,15 @@ export class HammerController {
     this.domElement.addEventListener('pointermove', this.onPointerMove);
     this.domElement.addEventListener('pointerenter', this.onPointerEnter);
     this.domElement.addEventListener('pointerleave', this.onPointerLeave);
+  }
+
+  setSensitivity(value: number): void {
+    this.sensitivity = THREE.MathUtils.clamp(value, 0.5, 2.8);
+  }
+
+  reset(): void {
+    this.currentReach = this.getReach();
+    this.desiredReach = this.currentReach;
   }
 
   private onPointerMove = (e: PointerEvent): void => {
@@ -99,7 +114,11 @@ export class HammerController {
    * extend from the grip pivot.
    */
   private updateTarget(): void {
-    this.ray.setFromCamera(this.ndc, this.camera);
+    this.aimNdc.set(
+      THREE.MathUtils.clamp(this.ndc.x * this.sensitivity, -1.8, 1.8),
+      THREE.MathUtils.clamp(this.ndc.y * this.sensitivity, -1.8, 1.8),
+    );
+    this.ray.setFromCamera(this.aimNdc, this.camera);
     const hit = this.ray.ray.intersectPlane(this.plane, this.targetWorld);
 
     const pivot = this.getPivot();
@@ -119,7 +138,8 @@ export class HammerController {
     const dist = Math.hypot(dx, dy);
     if (dist > 1e-4) this.lastDir.set(dx / dist, dy / dist);
 
-    this.desiredReach = THREE.MathUtils.clamp(dist, STEERING.minReach, STEERING.maxReach);
+    const maxTargetReach = STEERING.maxReach + (this.canOverdrive() ? STEERING.anchorOverreach : 0);
+    this.desiredReach = THREE.MathUtils.clamp(dist, STEERING.minReach, maxTargetReach);
     this.targetWorld.set(
       pivot.x + this.lastDir.x * this.desiredReach,
       pivot.y + this.lastDir.y * this.desiredReach,
@@ -132,7 +152,7 @@ export class HammerController {
     const delta = this.desiredReach - this.currentReach;
     if (Math.abs(delta) < 1e-5) return;
 
-    const maxStep = STEERING.reachSpeed * dt;
+    const maxStep = STEERING.reachSpeed * Math.sqrt(this.sensitivity) * dt;
     if (Math.abs(delta) <= maxStep) {
       this.currentReach = this.desiredReach;
     } else {
@@ -185,15 +205,18 @@ export class HammerController {
     this.computeHeadWorld();
     this.computeHeadVelocity();
 
+    const gainScale = this.sensitivity;
+    const dampingScale = Math.sqrt(this.sensitivity);
     this.tmpForce.set(
-      STEERING.kp * (this.targetWorld.x - this.headWorld.x) - STEERING.kd * this.tmpHeadVel.x,
-      STEERING.kp * (this.targetWorld.y - this.headWorld.y) - STEERING.kd * this.tmpHeadVel.y,
+      STEERING.kp * gainScale * (this.targetWorld.x - this.headWorld.x) - STEERING.kd * dampingScale * this.tmpHeadVel.x,
+      STEERING.kp * gainScale * (this.targetWorld.y - this.headWorld.y) - STEERING.kd * dampingScale * this.tmpHeadVel.y,
       0,
     );
 
     const mag = this.tmpForce.length();
-    if (mag > STEERING.maxForce) {
-      this.tmpForce.multiplyScalar(STEERING.maxForce / mag);
+    const maxForce = STEERING.maxForce * gainScale;
+    if (mag > maxForce) {
+      this.tmpForce.multiplyScalar(maxForce / mag);
     }
 
     this.steerForce.copy(this.tmpForce);

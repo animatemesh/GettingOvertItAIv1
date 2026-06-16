@@ -91,7 +91,8 @@ export const STEERING = {
    * a radial component for pressing into / pulling off terrain — the core of
    * vaulting and hooking (pushing yourself up).
    */
-  maxReach: HAMMER.handleLength + 0.6,
+  maxReach: HAMMER.handleLength,
+  anchorOverreach: 0.6,
   /**
    * Inner radius of the reach disc (a small dead zone): the head can't be
    * folded back through the body, and direction is unstable when the cursor

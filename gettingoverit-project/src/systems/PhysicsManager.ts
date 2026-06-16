@@ -46,6 +46,7 @@ export class PhysicsManager {
 
   // Published state (for HUD / audio feedback).
   anchored = false;
+  touchingTerrain = false;
   readonly contactNormal = new THREE.Vector3();
   readonly lastLeverageImpulse = new THREE.Vector3();
   /** Set true on the frame a fresh hard contact begins (for impact feedback). */
@@ -76,6 +77,15 @@ export class PhysicsManager {
     } else {
       this.lastLeverageImpulse.set(0, 0, 0);
     }
+  }
+
+  reset(): void {
+    this.anchored = false;
+    this.touchingTerrain = false;
+    this.impactStarted = false;
+    this.contactNormal.set(0, 0, 0);
+    this.lastLeverageImpulse.set(0, 0, 0);
+    this.nAccum.set(0, 0, 0);
   }
 
   /** Drain collision start/stop events to flag fresh impacts and clear the queue. */
@@ -128,10 +138,12 @@ export class PhysicsManager {
     });
 
     if (contactCount === 0) {
+      this.touchingTerrain = false;
       this.anchored = false;
       this.contactNormal.set(0, 0, 0);
       return;
     }
+    this.touchingTerrain = true;
 
     const aLen = this.nAccum.length();
     if (aLen < 1e-6) {

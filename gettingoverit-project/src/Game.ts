@@ -18,7 +18,21 @@ import { Player } from './entities/Player';
 import { HammerController } from './systems/HammerController';
 import { PhysicsManager } from './systems/PhysicsManager';
 import { Hud } from './ui/Hud';
-import { CLIMB_OF_PATIENCE } from './data/mapData';
+import type { ClimbMap } from './data/mapData';
+import { loadEditableMap } from './data/mapStore';
+import {
+  incrementVisitCount,
+  loadScoreboardState,
+  submitHighscore,
+  type ScoreboardState,
+} from './data/scoreStore';
+import {
+  loadGameSettings,
+  saveGameSettings,
+  type ChestPhysicsSettings,
+  type GameSettings,
+} from './data/settingsStore';
+import type { HudSettingKey } from './ui/Hud';
 
 export class Game {
   private readonly engine: Engine;
@@ -26,27 +40,49 @@ export class Game {
   private player!: Player;
   private controller!: HammerController;
   private physics!: PhysicsManager;
+  private map!: ClimbMap;
+  private settings: GameSettings = loadGameSettings();
+  private scoreboard: ScoreboardState = loadScoreboardState();
   private running = false;
+  private menuOpen = false;
+  private elapsedMs = 0;
+  private finishedTimeMs: number | null = null;
+  private scoreSubmittedForRun = false;
 
   private readonly focus = new THREE.Vector2();
   private readonly pivot = new THREE.Vector2();
 
   constructor(container: HTMLElement) {
     this.engine = new Engine(container);
-    this.hud = new Hud(container, () => {
-      const enabled = this.engine.toggleDebugRender();
-      this.hud.setDebugEnabled(enabled);
-    });
+    this.scoreboard = incrementVisitCount();
+    this.hud = new Hud(container, {
+      onToggleDebug: () => {
+        const enabled = this.engine.toggleDebugRender();
+        this.hud.setDebugEnabled(enabled);
+      },
+      onResetRun: () => this.resetRun(),
+      onToggleMenu: () => this.setMenuOpen(!this.menuOpen),
+      onCloseMenu: () => this.setMenuOpen(false),
+      onSubmitScore: () => this.submitCurrentScore(),
+      onSettingChange: (key, value) => this.updateSetting(key, value),
+    }, this.settings);
+    this.hud.setScoreboard(
+      this.scoreboard.visitCount,
+      this.scoreboard.highscores,
+      this.scoreboard.storageMode,
+    );
+    window.addEventListener('keydown', this.onKeyDown);
   }
 
   async start(): Promise<void> {
     await this.engine.initPhysics();
+    this.map = loadEditableMap();
 
     // Build the level (colliders + meshes) and collect terrain handles.
-    const level = new LevelBuilder(this.engine.scene, this.engine.world).build(CLIMB_OF_PATIENCE);
+    const level = new LevelBuilder(this.engine.scene, this.engine.world).build(this.map);
 
     // Spawn the player at the authored start.
-    this.player = new Player(this.engine.scene, this.engine.world, CLIMB_OF_PATIENCE.playerStart);
+    this.player = new Player(this.engine.scene, this.engine.world, this.map.playerStart);
     this.engine.registerPlaneLock(this.player.cauldronBody);
     this.engine.registerPlaneLock(this.player.hammerBody);
 
@@ -62,6 +98,7 @@ export class Game {
       getPivot: () => this.player.getGripPivot(this.pivot),
       getReach: () => this.player.hammerReach,
       setReach: (reach) => this.player.setHammerReach(reach),
+      canOverdrive: () => this.physics?.touchingTerrain ?? false,
     });
 
     // Leverage translation (anchored head -> counter-impulse on the cauldron).
@@ -73,12 +110,21 @@ export class Game {
       isTerrain: (handle) => level.terrainHandles.has(handle),
     });
 
+    this.applySettings();
+    this.refreshHud();
     this.running = true;
     requestAnimationFrame(this.frame);
   }
 
   private frame = (): void => {
     if (!this.running) return;
+
+    if (this.menuOpen) {
+      this.engine.syncClock();
+      this.engine.render();
+      requestAnimationFrame(this.frame);
+      return;
+    }
 
     const frameDt = this.engine.update({
       beforeStep: (dt) => this.controller.update(dt),
@@ -87,24 +133,141 @@ export class Game {
 
     // Visual + camera pass (once per rendered frame).
     this.player.update(frameDt);
+    if (this.finishedTimeMs == null) {
+      this.elapsedMs += frameDt * 1000;
+    }
 
     this.player.getFocus(this.focus);
     this.engine.updateCamera(this.focus.x, this.focus.y, frameDt);
     this.engine.followLight(this.focus.x, this.focus.y);
 
-    this.hud.update(this.focus.y, CLIMB_OF_PATIENCE.zones, this.physics.anchored);
-    if (this.player.isAt(CLIMB_OF_PATIENCE.winCondition.triggerArea)) {
-      this.hud.showWin();
+    this.refreshHud();
+    if (this.finishedTimeMs == null && this.player.isAt(this.map.winCondition.triggerArea)) {
+      this.finishRun();
     }
 
     this.engine.render();
     requestAnimationFrame(this.frame);
   };
 
+  private refreshHud(): void {
+    this.hud.update(
+      this.focus.y,
+      this.map.zones,
+      this.physics?.anchored ?? false,
+      this.finishedTimeMs ?? this.elapsedMs,
+    );
+  }
+
+  private finishRun(): void {
+    this.finishedTimeMs = this.elapsedMs;
+    this.hud.showWin();
+    this.hud.setPendingScore(true, 'Reached the flag. Saving your time to the leaderboard...');
+    this.setMenuOpen(true);
+    this.submitCurrentScore();
+  }
+
+  private submitCurrentScore(): void {
+    if (this.finishedTimeMs == null || this.scoreSubmittedForRun) return;
+
+    this.hud.setScoreSubmitting(true);
+    try {
+      this.scoreboard = submitHighscore(this.settings.playerName, this.finishedTimeMs);
+      this.scoreSubmittedForRun = true;
+      this.hud.setScoreboard(
+        this.scoreboard.visitCount,
+        this.scoreboard.highscores,
+        this.scoreboard.storageMode,
+      );
+      this.hud.setPendingScore(false, 'Highscore saved on this device.');
+    } finally {
+      this.hud.setScoreSubmitting(false);
+    }
+  }
+
+  private resetRun(): void {
+    if (!this.player || !this.controller || !this.physics) return;
+
+    this.elapsedMs = 0;
+    this.finishedTimeMs = null;
+    this.scoreSubmittedForRun = false;
+
+    this.player.resetTo(this.map.playerStart);
+    this.controller.reset();
+    this.physics.reset();
+    this.engine.syncClock();
+
+    this.hud.resetWin();
+    this.hud.setPendingScore(false, '');
+    this.setMenuOpen(false);
+
+    this.player.getFocus(this.focus);
+    this.engine.updateCamera(this.focus.x, this.focus.y, 0);
+    this.engine.followLight(this.focus.x, this.focus.y);
+    this.refreshHud();
+    this.engine.render();
+  }
+
+  private setMenuOpen(open: boolean): void {
+    this.menuOpen = open;
+    this.hud.setMenuOpen(open);
+    this.engine.syncClock();
+  }
+
+  private onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    this.setMenuOpen(!this.menuOpen);
+  };
+
+  private updateSetting(key: HudSettingKey, value: string | boolean): void {
+    switch (key) {
+      case 'hammerSensitivity':
+        this.settings.hammerSensitivity = clampNumber(value, this.settings.hammerSensitivity, 0.5, 2.8);
+        break;
+      case 'playerName':
+        this.settings.playerName = String(value).slice(0, 24);
+        saveGameSettings(this.settings);
+        return;
+      case 'chestEnabled':
+        this.settings.chestPhysics.enabled = Boolean(value);
+        break;
+      case 'chestStiffness':
+        this.settings.chestPhysics.stiffness = clampNumber(value, this.settings.chestPhysics.stiffness, 0, 220);
+        break;
+      case 'chestDamping':
+        this.settings.chestPhysics.damping = clampNumber(value, this.settings.chestPhysics.damping, 0, 24);
+        break;
+      case 'chestGravity':
+        this.settings.chestPhysics.gravity = clampNumber(value, this.settings.chestPhysics.gravity, -8, 8);
+        break;
+      case 'chestMass':
+        this.settings.chestPhysics.mass = clampNumber(value, this.settings.chestPhysics.mass, 0.05, 2.5);
+        break;
+      default:
+        return;
+    }
+
+    this.applySettings();
+  }
+
+  private applySettings(): void {
+    saveGameSettings(this.settings);
+    this.controller?.setSensitivity(this.settings.hammerSensitivity);
+    this.player?.applyChestSettings(this.settings.chestPhysics as ChestPhysicsSettings);
+  }
+
   stop(): void {
     this.running = false;
+    window.removeEventListener('keydown', this.onKeyDown);
     this.controller?.dispose();
     this.player?.dispose();
     this.engine.dispose();
   }
+}
+
+function clampNumber(value: string | boolean, fallback: number, min: number, max: number): number {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, num));
 }

@@ -15,6 +15,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ArmIK } from '../systems/ArmIK';
 import { BreastPhysics } from '../systems/BreastPhysics';
 import { MODEL, BREAST } from '../data/config';
+import type { ChestPhysicsSettings } from '../data/settingsStore';
 
 export class CharacterRig {
   root: THREE.Object3D | null = null;
@@ -91,5 +92,13 @@ export class CharacterRig {
     this.rightArm?.solve(rightTarget, rightPole);
     this.leftArm?.solve(leftTarget, leftPole);
     this.breast?.update(dt);
+  }
+
+  applyBreastSettings(settings: ChestPhysicsSettings): void {
+    this.breast?.applyConfig(settings);
+  }
+
+  resetSecondaryMotion(): void {
+    this.breast?.reset();
   }
 }

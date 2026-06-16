@@ -186,6 +186,11 @@ export class Engine {
     this.renderer.render(this.scene, this.camera);
   }
 
+  syncClock(): void {
+    this.clock.getDelta();
+    this.accumulator = 0;
+  }
+
   toggleDebugRender(): boolean {
     this.debugEnabled = !this.debugEnabled;
     if (!this.debugEnabled) this.hideDebugOverlay();
