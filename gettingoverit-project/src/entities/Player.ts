@@ -51,7 +51,9 @@ export class Player {
   private leftHandLowOnShaft = false;
   private shaftMesh!: THREE.Mesh;
   private headMesh!: THREE.Mesh;
-  private clawMesh!: THREE.Mesh;
+  private leftFaceMesh!: THREE.Mesh;
+  private rightFaceMesh!: THREE.Mesh;
+  private collarMesh!: THREE.Mesh;
   private buttMesh!: THREE.Mesh;
 
   // Scratch.
@@ -164,7 +166,9 @@ export class Player {
     (this.shaftMesh.material as THREE.MeshStandardMaterial).color.setHex(shaftColor);
     (this.buttMesh.material as THREE.MeshStandardMaterial).color.setHex(shaftColor);
     (this.headMesh.material as THREE.MeshStandardMaterial).color.setHex(headColor);
-    (this.clawMesh.material as THREE.MeshStandardMaterial).color.setHex(headColor);
+    (this.leftFaceMesh.material as THREE.MeshStandardMaterial).color.setHex(headColor);
+    (this.rightFaceMesh.material as THREE.MeshStandardMaterial).color.setHex(headColor);
+    (this.collarMesh.material as THREE.MeshStandardMaterial).color.setHex(headColor);
   }
 
   /** Hammer head world position (for VFX / ability anchors). */
@@ -291,24 +295,35 @@ export class Player {
   private buildHammerMesh(): THREE.Group {
     const g = new THREE.Group();
 
-    const shaftMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.7, metalness: 0.1 });
+    const shaftMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.65, metalness: 0.08 });
     this.shaftMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(HAMMER.handleRadius, HAMMER.handleRadius, 1, 12),
+      new THREE.CylinderGeometry(HAMMER.handleRadius * 0.9, HAMMER.handleRadius * 1.08, 1, 16),
       shaftMat,
     );
     this.shaftMesh.castShadow = true;
     g.add(this.shaftMesh);
 
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xb04a2a, roughness: 0.5, metalness: 0.4 });
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x6f737b, roughness: 0.32, metalness: 0.82 });
     const he = HAMMER.headHalfExtents;
     this.headMesh = new THREE.Mesh(new THREE.BoxGeometry(he.x * 2, he.y * 2, he.z * 2), headMat);
     this.headMesh.castShadow = true;
     g.add(this.headMesh);
 
-    this.clawMesh = new THREE.Mesh(new THREE.BoxGeometry(he.x * 1.4, he.y * 0.5, he.z * 0.6), headMat);
-    this.clawMesh.rotation.z = 0.5;
-    this.clawMesh.castShadow = true;
-    g.add(this.clawMesh);
+    const faceGeom = new THREE.BoxGeometry(he.x * 0.22, he.y * 1.3, he.z * 1.18);
+    this.leftFaceMesh = new THREE.Mesh(faceGeom, headMat);
+    this.leftFaceMesh.castShadow = true;
+    g.add(this.leftFaceMesh);
+
+    this.rightFaceMesh = new THREE.Mesh(faceGeom, headMat);
+    this.rightFaceMesh.castShadow = true;
+    g.add(this.rightFaceMesh);
+
+    this.collarMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(he.x * 0.52, he.y * 0.74, he.z * 1.12),
+      headMat,
+    );
+    this.collarMesh.castShadow = true;
+    g.add(this.collarMesh);
 
     this.buttMesh = new THREE.Mesh(
       new THREE.CylinderGeometry(HAMMER.handleRadius * 1.1, HAMMER.handleRadius * 1.25, 0.18, 10),
@@ -322,7 +337,7 @@ export class Player {
   }
 
   private layoutHammerMesh(): void {
-    if (!this.shaftMesh || !this.headMesh || !this.clawMesh || !this.buttMesh) return;
+    if (!this.shaftMesh || !this.headMesh || !this.leftFaceMesh || !this.rightFaceMesh || !this.collarMesh || !this.buttMesh) return;
 
     const he = HAMMER.headHalfExtents;
     const rearReach = HAMMER.rearVisualLength + (HAMMER.handleLength - this.currentReach);
@@ -331,7 +346,9 @@ export class Player {
     this.shaftMesh.scale.set(1, totalVisualLength, 1);
 
     this.headMesh.position.y = this.currentReach;
-    this.clawMesh.position.set(-he.x * 0.9, this.currentReach + he.y * 0.6, 0);
+    this.leftFaceMesh.position.set(-he.x * 1.08, this.currentReach, 0);
+    this.rightFaceMesh.position.set(he.x * 1.08, this.currentReach, 0);
+    this.collarMesh.position.set(0, this.currentReach, 0);
     this.buttMesh.position.y = -rearReach;
   }
 
