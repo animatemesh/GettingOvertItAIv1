@@ -21,8 +21,8 @@ import { Hud } from './ui/Hud';
 import type { ClimbMap } from './data/mapData';
 import { loadEditableMap } from './data/mapStore';
 import {
-  incrementVisitCount,
-  loadScoreboardState,
+  loadLocalScoreboard,
+  registerVisit,
   submitHighscore,
   type ScoreboardState,
 } from './data/scoreStore';
@@ -43,7 +43,7 @@ export class Game {
   private physics!: PhysicsManager;
   private map!: ClimbMap;
   private settings: GameSettings = loadGameSettings();
-  private scoreboard: ScoreboardState = loadScoreboardState();
+  private scoreboard: ScoreboardState = loadLocalScoreboard();
   private running = false;
   private menuOpen = false;
   private elapsedMs = 0;
@@ -55,7 +55,6 @@ export class Game {
 
   constructor(container: HTMLElement) {
     this.engine = new Engine(container);
-    this.scoreboard = incrementVisitCount();
     this.hud = new Hud(container, {
       onToggleDebug: () => {
         const enabled = this.engine.toggleDebugRender();
@@ -74,6 +73,17 @@ export class Game {
       this.scoreboard.storageMode,
     );
     window.addEventListener('keydown', this.onKeyDown);
+    void this.initScoreboard();
+  }
+
+  /** Count this visit and pull the live scoreboard (async; updates the HUD). */
+  private async initScoreboard(): Promise<void> {
+    this.scoreboard = await registerVisit();
+    this.hud.setScoreboard(
+      this.scoreboard.visitCount,
+      this.scoreboard.highscores,
+      this.scoreboard.storageMode,
+    );
   }
 
   async start(): Promise<void> {
@@ -165,27 +175,31 @@ export class Game {
   private finishRun(): void {
     this.finishedTimeMs = this.elapsedMs;
     this.hud.showWin();
-    this.hud.setPendingScore(
-      true,
-      'Global highscores still need a small write backend. For now this saves on the current device.',
-      this.finishedTimeMs,
-    );
+    const prompt =
+      this.scoreboard.storageMode === 'remote'
+        ? 'Submit your time to the global leaderboard.'
+        : 'Submit your time (saved on this device).';
+    this.hud.setPendingScore(true, prompt, this.finishedTimeMs);
     this.setMenuOpen(true);
   }
 
-  private submitCurrentScore(): void {
+  private async submitCurrentScore(): Promise<void> {
     if (this.finishedTimeMs == null || this.scoreSubmittedForRun) return;
 
     this.hud.setScoreSubmitting(true);
     try {
-      this.scoreboard = submitHighscore(this.settings.playerName, this.finishedTimeMs);
+      this.scoreboard = await submitHighscore(this.settings.playerName, this.finishedTimeMs);
       this.scoreSubmittedForRun = true;
       this.hud.setScoreboard(
         this.scoreboard.visitCount,
         this.scoreboard.highscores,
         this.scoreboard.storageMode,
       );
-      this.hud.setPendingScore(false, 'Run saved to local highscores.', null);
+      const msg =
+        this.scoreboard.storageMode === 'remote'
+          ? 'Run saved to the online leaderboard.'
+          : 'Saved on this device (online leaderboard not reachable).';
+      this.hud.setPendingScore(false, msg, null);
     } finally {
       this.hud.setScoreSubmitting(false);
     }

@@ -27,7 +27,7 @@ interface HudMenuState {
   settings: GameSettings;
   visitCount: number;
   highscores: HighscoreEntry[];
-  storageMode: 'local';
+  storageMode: 'local' | 'remote';
   pendingScoreTimeMs: number | null;
   canSubmitScore: boolean;
   scoreSubmitting: boolean;
@@ -163,7 +163,7 @@ export class Hud {
   setScoreboard(
     visitCount: number,
     highscores: HighscoreEntry[],
-    storageMode: 'local',
+    storageMode: 'local' | 'remote',
   ): void {
     this.menuState.visitCount = visitCount;
     this.menuState.highscores = highscores;
