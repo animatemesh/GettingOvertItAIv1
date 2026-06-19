@@ -21,6 +21,7 @@ import type { Player } from '../entities/Player';
 import type { SlamVfx } from './SlamVfx';
 import { HAMMERS, type HammerId, type HammerKind } from '../data/hammers';
 import { PLANE_Z } from '../data/config';
+import { type GamepadManager, GP } from './GamepadManager';
 
 // --- Ability tuning ---------------------------------------------------------
 const THOR_LAUNCH = 150; // upward impulse on the cauldron for a much stronger launch
@@ -48,6 +49,10 @@ export interface AbilityControllerOpts {
   isTerrain: (handle: number) => boolean;
   /** Notified when the equipped hammer changes (HUD + recolour). */
   onHammerChange: (kind: HammerKind) => void;
+  /** Optional gamepad — R2 fires ability, right stick provides aim direction. */
+  gamepad?: GamepadManager;
+  /** When false, pointer events are ignored (gamepad-only mode). */
+  mouseEnabled?: boolean;
 }
 
 export class AbilityController {
@@ -62,6 +67,8 @@ export class AbilityController {
   private readonly onHammerChange: (kind: HammerKind) => void;
 
   private current: HammerId = 'basic';
+  private readonly gamepad: GamepadManager | undefined;
+  private readonly mouseEnabled: boolean;
   private cooldownLeft = 0;
   private slowmoLeft = 0;
 
@@ -92,11 +99,14 @@ export class AbilityController {
     this.vfx = opts.vfx;
     this.isTerrain = opts.isTerrain;
     this.onHammerChange = opts.onHammerChange;
+    this.gamepad = opts.gamepad;
+    this.mouseEnabled = opts.mouseEnabled !== false;
 
-    this.domElement.addEventListener('pointermove', this.onPointerMove);
-    this.domElement.addEventListener('pointerdown', this.onPointerDown);
-    this.domElement.addEventListener('pointerup', this.onPointerUp);
-    // Suppress the context menu so RMB/other inputs feel clean if added later.
+    if (this.mouseEnabled) {
+      this.domElement.addEventListener('pointermove', this.onPointerMove);
+      this.domElement.addEventListener('pointerdown', this.onPointerDown);
+      this.domElement.addEventListener('pointerup', this.onPointerUp);
+    }
     this.domElement.addEventListener('contextmenu', this.onContextMenu);
 
     this.setHammer('basic');
@@ -129,6 +139,13 @@ export class AbilityController {
       if (this.slowmoLeft <= 0) this.engine.timeScale = 1;
     }
 
+    // Gamepad: sync aim NDC from virtual cursor; Cross (✕) fires the ability.
+    if (this.gamepad?.connected) {
+      this.ndc.copy(this.gamepad.virtualNdc);
+      if (this.gamepad.justPressed(GP.CROSS)) this.activate();
+      if (this.gamepad.justReleased(GP.CROSS) && this.current === 'spiderman') this.releaseWeb();
+    }
+
     if (this.webJoint) this.updateWebVisual();
   }
 
@@ -140,9 +157,11 @@ export class AbilityController {
   }
 
   dispose(): void {
-    this.domElement.removeEventListener('pointermove', this.onPointerMove);
-    this.domElement.removeEventListener('pointerdown', this.onPointerDown);
-    this.domElement.removeEventListener('pointerup', this.onPointerUp);
+    if (this.mouseEnabled) {
+      this.domElement.removeEventListener('pointermove', this.onPointerMove);
+      this.domElement.removeEventListener('pointerdown', this.onPointerDown);
+      this.domElement.removeEventListener('pointerup', this.onPointerUp);
+    }
     this.domElement.removeEventListener('contextmenu', this.onContextMenu);
     this.reset();
   }

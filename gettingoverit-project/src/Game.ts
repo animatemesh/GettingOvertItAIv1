@@ -22,6 +22,8 @@ import { AbilityController } from './systems/AbilityController';
 import { HAMMERS, HAMMER_ORDER, type HammerId } from './data/hammers';
 import { loadProgression, saveProgression, type Progression } from './data/progressionStore';
 import { type CommunityMap, incrementPlayCount } from './data/communityMapStore';
+import { GamepadManager, GP } from './systems/GamepadManager';
+import type { InputMode } from './ui/InputSelectionScreen';
 import { Hud } from './ui/Hud';
 import { CommunityMapsScreen } from './ui/CommunityMapsScreen';
 
@@ -72,14 +74,17 @@ export class Game {
 
   private readonly container: HTMLElement;
   private readonly communityMap: CommunityMap | undefined;
+  private readonly inputMode: InputMode;
   private communityScreen: CommunityMapsScreen | null = null;
+  private readonly gamepad = new GamepadManager();
 
   private readonly focus = new THREE.Vector2();
   private readonly pivot = new THREE.Vector2();
 
-  constructor(container: HTMLElement, communityMap?: CommunityMap) {
+  constructor(container: HTMLElement, communityMap?: CommunityMap, inputMode: InputMode = 'mouse') {
     this.container = container;
     this.communityMap = communityMap;
+    this.inputMode = inputMode;
     this.engine = new Engine(container);
     this.hud = new Hud(container, {
       onToggleDebug: () => {
@@ -147,6 +152,8 @@ export class Game {
       getReach: () => this.player.hammerReach,
       setReach: (reach) => this.player.setHammerReach(reach),
       canOverdrive: () => this.physics?.touchingTerrain ?? false,
+      gamepad: this.gamepad,
+      mouseEnabled: this.inputMode === 'mouse',
     });
 
     // Leverage translation (anchored head -> counter-impulse on the cauldron).
@@ -170,6 +177,8 @@ export class Game {
       vfx: this.vfx,
       isTerrain: (handle) => level.terrainHandles.has(handle),
       onHammerChange: (kind) => this.hud.setHammer(kind.name, kind.ability),
+      gamepad: this.gamepad,
+      mouseEnabled: this.inputMode === 'mouse',
     });
     this.equipHammer('basic');
     this.syncProgressionHud();
@@ -182,6 +191,10 @@ export class Game {
 
   private frame = (): void => {
     if (!this.running) return;
+
+    // Poll gamepad before anything else so all systems see this frame's state.
+    this.gamepad.poll(this.engine.lastFrameDt, this.settings.gamepadSensitivity);
+    this.handleGamepadMenuInput();
 
     if (this.menuOpen || this.shopOpen) {
       this.engine.syncClock();
@@ -335,6 +348,47 @@ export class Game {
     this.engine.syncClock();
   }
 
+  private handleGamepadMenuInput(): void {
+    if (!this.gamepad.connected) return;
+
+    // Options → toggle menu
+    if (this.gamepad.justPressed(GP.OPTIONS)) {
+      if (this.shopOpen) this.setShopOpen(false);
+      else this.setMenuOpen(!this.menuOpen);
+    }
+
+    // Triangle → toggle shop
+    if (this.gamepad.justPressed(GP.TRIANGLE) && !this.menuOpen) {
+      this.setShopOpen(!this.shopOpen);
+    }
+
+    // Circle → close overlays; Cross only closes (not fires ability) when overlay is open
+    if (this.gamepad.justPressed(GP.CIRCLE)) {
+      if (this.shopOpen) this.setShopOpen(false);
+      else if (this.menuOpen) this.setMenuOpen(false);
+    }
+    if (this.gamepad.justPressed(GP.CROSS) && (this.shopOpen || this.menuOpen)) {
+      if (this.shopOpen) this.setShopOpen(false);
+      else this.setMenuOpen(false);
+    }
+
+    if (this.menuOpen || this.shopOpen || !this.abilities) return;
+
+    // D-pad left / L1 → previous hammer
+    if (this.gamepad.justPressed(GP.DPAD_LEFT) || this.gamepad.justPressed(GP.L1)) {
+      const idx = HAMMER_ORDER.indexOf(this.abilities.currentKind.id);
+      const next = (idx - 1 + HAMMER_ORDER.length) % HAMMER_ORDER.length;
+      this.equipHammer(HAMMER_ORDER[next]);
+    }
+
+    // D-pad right / R1 → next hammer
+    if (this.gamepad.justPressed(GP.DPAD_RIGHT) || this.gamepad.justPressed(GP.R1)) {
+      const idx = HAMMER_ORDER.indexOf(this.abilities.currentKind.id);
+      const next = (idx + 1) % HAMMER_ORDER.length;
+      this.equipHammer(HAMMER_ORDER[next]);
+    }
+  }
+
   private openCommunityMaps(): void {
     if (this.communityScreen) return;
     this.setMenuOpen(false);
@@ -404,6 +458,9 @@ export class Game {
       case 'hammerSensitivity':
         this.settings.hammerSensitivity = clampNumber(value, this.settings.hammerSensitivity, 0.5, 2.8);
         break;
+      case 'gamepadSensitivity':
+        this.settings.gamepadSensitivity = clampNumber(value, this.settings.gamepadSensitivity, 4, 100);
+        break;
       case 'playerName':
         this.settings.playerName = String(value).slice(0, 24);
         saveGameSettings(this.settings);
@@ -449,6 +506,7 @@ export class Game {
     this.vfx?.dispose();
     this.controller?.dispose();
     this.player?.dispose();
+    this.gamepad.dispose();
     this.engine.dispose();
   }
 }

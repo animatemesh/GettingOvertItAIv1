@@ -6,6 +6,7 @@ import { canUseMapEditor } from '../utils/editorAccess';
 
 export type HudSettingKey =
   | 'hammerSensitivity'
+  | 'gamepadSensitivity'
   | 'playerName'
   | 'chestEnabled'
   | 'chestStiffness'
@@ -409,7 +410,7 @@ export class Hud {
           <section class="hud-menu-card">
             <h3>Hammer</h3>
             <label class="hud-menu-field">
-              <span>Sensitivity <strong>${settings.hammerSensitivity.toFixed(2)}</strong></span>
+              <span>Mouse Sensitivity <strong>${settings.hammerSensitivity.toFixed(2)}</strong></span>
               <input
                 data-setting="hammerSensitivity"
                 type="range"
@@ -419,7 +420,18 @@ export class Hud {
                 value="${settings.hammerSensitivity}"
               />
             </label>
-            <p class="hud-menu-note">Higher sensitivity makes the hammer react faster and reach farther with smaller mouse movement.</p>
+            <label class="hud-menu-field">
+              <span>Gamepad Sensitivity <strong>${settings.gamepadSensitivity.toFixed(0)}</strong></span>
+              <input
+                data-setting="gamepadSensitivity"
+                type="range"
+                min="4"
+                max="100"
+                step="1"
+                value="${settings.gamepadSensitivity}"
+              />
+            </label>
+            <p class="hud-menu-note">Gamepad sensitivity controls how fast the aim cursor moves with the left stick.</p>
             <button type="button" class="hud-menu-button" data-action="toggle-debug">Toggle Collision Debug</button>
           </section>
 

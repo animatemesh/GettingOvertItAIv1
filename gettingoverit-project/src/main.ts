@@ -6,6 +6,7 @@ import { Game } from './Game';
 import { MapEditor } from './editor/MapEditor';
 import { canUseMapEditor, stripEditorPath } from './utils/editorAccess';
 import { getActiveCommunityMap, clearActiveCommunityMap } from './data/communityMapStore';
+import { InputSelectionScreen, type InputMode } from './ui/InputSelectionScreen';
 
 const REDIRECT_STORAGE_KEY = 'climb-of-patience:redirect-path';
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -28,17 +29,18 @@ if (wantsEditor && canUseMapEditor()) {
     window.history.replaceState(null, '', stripEditorPath(window.location.pathname));
   }
 
-  // Check if the user chose to play a community map from the browser.
   const communityMap = getActiveCommunityMap();
   if (communityMap) clearActiveCommunityMap();
 
-  const game = new Game(app, communityMap ?? undefined);
-  game.start().catch((err) => {
-    console.error('Failed to start game:', err);
-    const msg = document.createElement('pre');
-    msg.className = 'fatal';
-    msg.textContent = `Failed to start:\n${err?.stack ?? err}`;
-    app.appendChild(msg);
+  new InputSelectionScreen(app, (mode: InputMode) => {
+    const game = new Game(app, communityMap ?? undefined, mode);
+    game.start().catch((err) => {
+      console.error('Failed to start game:', err);
+      const msg = document.createElement('pre');
+      msg.className = 'fatal';
+      msg.textContent = `Failed to start:\n${err?.stack ?? err}`;
+      app.appendChild(msg);
+    });
   });
 }
 

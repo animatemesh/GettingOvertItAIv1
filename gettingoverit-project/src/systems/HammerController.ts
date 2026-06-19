@@ -15,6 +15,10 @@ import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { PLANE_Z, STEERING } from '../data/config';
 
+/** World units/sec at full trigger deflection for gamepad reach control. */
+const GAMEPAD_REACH_SPEED = 4.0;
+import { type GamepadManager, GP } from './GamepadManager';
+
 export interface HammerControllerOpts {
   camera: THREE.PerspectiveCamera;
   domElement: HTMLElement;
@@ -31,6 +35,10 @@ export interface HammerControllerOpts {
   setReach: (reach: number) => void;
   /** True while terrain contact is active, allowing extra push-overreach. */
   canOverdrive: () => boolean;
+  /** Optional gamepad — when connected its virtual NDC overrides the mouse. */
+  gamepad?: GamepadManager;
+  /** When false, pointer events are ignored (gamepad-only mode). */
+  mouseEnabled?: boolean;
 }
 
 export class HammerController {
@@ -67,6 +75,8 @@ export class HammerController {
   private readonly tmpForce = new THREE.Vector3();
   private readonly aimNdc = new THREE.Vector2();
   private sensitivity = 1;
+  private readonly gamepad: GamepadManager | undefined;
+  private readonly mouseEnabled: boolean;
 
   constructor(opts: HammerControllerOpts) {
     this.camera = opts.camera;
@@ -79,12 +89,16 @@ export class HammerController {
     this.setReach = opts.setReach;
     this.canOverdrive = opts.canOverdrive;
 
+    this.gamepad = opts.gamepad;
+    this.mouseEnabled = opts.mouseEnabled !== false;
     this.currentReach = this.getReach();
     this.desiredReach = this.currentReach;
 
-    this.domElement.addEventListener('pointermove', this.onPointerMove);
-    this.domElement.addEventListener('pointerenter', this.onPointerEnter);
-    this.domElement.addEventListener('pointerleave', this.onPointerLeave);
+    if (this.mouseEnabled) {
+      this.domElement.addEventListener('pointermove', this.onPointerMove);
+      this.domElement.addEventListener('pointerenter', this.onPointerEnter);
+      this.domElement.addEventListener('pointerleave', this.onPointerLeave);
+    }
   }
 
   setSensitivity(value: number): void {
@@ -101,6 +115,8 @@ export class HammerController {
     this.ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     this.pointerInside = true;
+    // Keep the virtual gamepad cursor in sync so switching back feels seamless.
+    this.gamepad?.syncNdc(this.ndc.x, this.ndc.y);
   };
 
   private onPointerEnter = (): void => {
@@ -113,20 +129,44 @@ export class HammerController {
   };
 
   /**
-   * Recompute the world-space target from the current pointer ray. The pointer
-   * chooses both the swing direction and how far the head should retract or
-   * extend from the grip pivot.
+   * Recompute the world-space target from the current pointer or gamepad input.
+   * Mouse: cursor distance from pivot drives both direction and reach.
+   * Gamepad: left stick drives direction, L2/R2 triggers drive reach.
    */
-  private updateTarget(): void {
+  private updateTarget(dt: number): void {
+    const src = (this.gamepad?.connected) ? this.gamepad.virtualNdc : this.ndc;
     this.aimNdc.set(
-      THREE.MathUtils.clamp(this.ndc.x * this.sensitivity, -1.8, 1.8),
-      THREE.MathUtils.clamp(this.ndc.y * this.sensitivity, -1.8, 1.8),
+      THREE.MathUtils.clamp(src.x * this.sensitivity, -1.8, 1.8),
+      THREE.MathUtils.clamp(src.y * this.sensitivity, -1.8, 1.8),
     );
     this.ray.setFromCamera(this.aimNdc, this.camera);
     const hit = this.ray.ray.intersectPlane(this.plane, this.targetWorld);
 
     const pivot = this.getPivot();
+    const maxTargetReach = STEERING.maxReach + (this.canOverdrive() ? STEERING.anchorOverreach : 0);
 
+    if (this.gamepad?.connected && !this.mouseEnabled) {
+      // Gamepad mode: direction from left stick, reach from L2 (shorten) / R2 (extend).
+      if (hit) {
+        this.targetWorld.z = PLANE_Z;
+        const dx = this.targetWorld.x - pivot.x;
+        const dy = this.targetWorld.y - pivot.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 1e-4) this.lastDir.set(dx / dist, dy / dist);
+      }
+      const r2 = this.gamepad.triggerValue(GP.R2);
+      const l2 = this.gamepad.triggerValue(GP.L2);
+      if (r2 > 0.02) this.desiredReach = Math.min(maxTargetReach, this.desiredReach + r2 * GAMEPAD_REACH_SPEED * dt);
+      if (l2 > 0.02) this.desiredReach = Math.max(STEERING.minReach, this.desiredReach - l2 * GAMEPAD_REACH_SPEED * dt);
+      this.targetWorld.set(
+        pivot.x + this.lastDir.x * this.desiredReach,
+        pivot.y + this.lastDir.y * this.desiredReach,
+        PLANE_Z,
+      );
+      return;
+    }
+
+    // Mouse mode: cursor distance drives both direction and reach.
     if (!hit) {
       this.targetWorld.set(
         pivot.x + this.lastDir.x * this.desiredReach,
@@ -142,7 +182,6 @@ export class HammerController {
     const dist = Math.hypot(dx, dy);
     if (dist > 1e-4) this.lastDir.set(dx / dist, dy / dist);
 
-    const maxTargetReach = STEERING.maxReach + (this.canOverdrive() ? STEERING.anchorOverreach : 0);
     this.desiredReach = THREE.MathUtils.clamp(dist, STEERING.minReach, maxTargetReach);
     this.targetWorld.set(
       pivot.x + this.lastDir.x * this.desiredReach,
@@ -207,7 +246,7 @@ export class HammerController {
     this.cauldron.resetForces(false);
     this.cauldron.resetTorques(false);
 
-    this.updateTarget();
+    this.updateTarget(dt);
     this.updateReach(dt);
     this.computeHeadWorld();
     this.computeHeadVelocity();
@@ -245,8 +284,10 @@ export class HammerController {
   }
 
   dispose(): void {
-    this.domElement.removeEventListener('pointermove', this.onPointerMove);
-    this.domElement.removeEventListener('pointerenter', this.onPointerEnter);
-    this.domElement.removeEventListener('pointerleave', this.onPointerLeave);
+    if (this.mouseEnabled) {
+      this.domElement.removeEventListener('pointermove', this.onPointerMove);
+      this.domElement.removeEventListener('pointerenter', this.onPointerEnter);
+      this.domElement.removeEventListener('pointerleave', this.onPointerLeave);
+    }
   }
 }

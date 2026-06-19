@@ -47,6 +47,8 @@ export class Engine {
 
   private readonly clock = new THREE.Clock();
   private accumulator = 0;
+  /** Wall-clock dt of the most recently completed frame (seconds). */
+  lastFrameDt = 1 / 60;
 
   /**
    * Simulation time scale. 1 = realtime; lower = slow-motion (used by the Ice
@@ -122,6 +124,7 @@ export class Engine {
    */
   update(hooks: StepHooks): number {
     const frameDt = Math.min(this.clock.getDelta(), 0.1);
+    this.lastFrameDt = frameDt;
     // Slow-motion scales the physics budget but not the returned real dt, so
     // camera follow and VFX stay smooth while the simulation slows.
     this.accumulator += frameDt * this.timeScale;
@@ -199,6 +202,7 @@ export class Engine {
     this.clock.getDelta();
     this.accumulator = 0;
   }
+
 
   toggleDebugRender(): boolean {
     this.debugEnabled = !this.debugEnabled;
