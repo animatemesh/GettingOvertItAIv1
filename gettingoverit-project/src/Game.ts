@@ -459,7 +459,7 @@ export class Game {
         this.settings.hammerSensitivity = clampNumber(value, this.settings.hammerSensitivity, 0.5, 2.8);
         break;
       case 'gamepadSensitivity':
-        this.settings.gamepadSensitivity = clampNumber(value, this.settings.gamepadSensitivity, 4, 100);
+        this.settings.gamepadSensitivity = clampNumber(value, this.settings.gamepadSensitivity, 100, 200);
         break;
       case 'playerName':
         this.settings.playerName = String(value).slice(0, 24);

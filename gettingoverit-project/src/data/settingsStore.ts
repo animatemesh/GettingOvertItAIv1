@@ -19,7 +19,7 @@ export const GAME_SETTINGS_STORAGE_KEY = 'climb-of-patience:settings';
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   hammerSensitivity: 1.35,
-  gamepadSensitivity: 10,
+  gamepadSensitivity: 100,
   playerName: 'Climber',
   chestPhysics: {
     enabled: BREAST.enabled,
@@ -63,7 +63,7 @@ function sanitizeSettings(input: Partial<GameSettings>): GameSettings {
 
   return {
     hammerSensitivity: clampNumber(input.hammerSensitivity, defaults.hammerSensitivity, 0.5, 2.8),
-    gamepadSensitivity: clampNumber(input.gamepadSensitivity, defaults.gamepadSensitivity, 4, 100),
+    gamepadSensitivity: clampNumber(input.gamepadSensitivity, defaults.gamepadSensitivity, 100, 200),
     playerName: sanitizeName(input.playerName, defaults.playerName),
     chestPhysics: {
       enabled: typeof chest.enabled === 'boolean' ? chest.enabled : defaults.chestPhysics.enabled,

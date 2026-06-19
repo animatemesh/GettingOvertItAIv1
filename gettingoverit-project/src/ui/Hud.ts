@@ -425,8 +425,8 @@ export class Hud {
               <input
                 data-setting="gamepadSensitivity"
                 type="range"
-                min="4"
-                max="100"
+                min="100"
+                max="200"
                 step="1"
                 value="${settings.gamepadSensitivity}"
               />
