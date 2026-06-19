@@ -1103,3 +1103,274 @@ body {
     transform: translateX(135%) skewX(-18deg);
   }
 }
+
+/* ─── Community Maps Screen ──────────────────────────────────────────────────── */
+.cm-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.cm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+}
+
+.cm-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 860px;
+  margin: 20px;
+  background: #1e1a17;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.cm-header h2 {
+  margin: 0 0 4px;
+  font-size: 1.3rem;
+  color: #f0e6d0;
+}
+
+.cm-subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #887c6a;
+}
+
+.cm-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cm-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+}
+
+.cm-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 200px;
+  color: #887c6a;
+  text-align: center;
+}
+
+.cm-error {
+  color: #e07070;
+}
+
+.cm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.cm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+
+.cm-card:hover {
+  border-color: rgba(255,255,255,0.15);
+}
+
+.cm-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f0e6d0;
+  line-height: 1.2;
+}
+
+.cm-card-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 0.76rem;
+  color: #7a6e5e;
+}
+
+.cm-card-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: #9a8e7e;
+}
+
+.cm-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cm-btn {
+  padding: 6px 14px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.06);
+  color: #c8bfb0;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.cm-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.12);
+}
+
+.cm-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.cm-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.cm-btn-primary {
+  background: rgba(210,140,60,0.18);
+  border-color: rgba(210,140,60,0.4);
+  color: #d4a060;
+  flex: 1;
+}
+
+.cm-btn-primary:hover:not(:disabled) {
+  background: rgba(210,140,60,0.28);
+}
+
+.cm-btn-vote {
+  background: transparent;
+  border-color: rgba(255,220,80,0.25);
+  color: #c8b050;
+}
+
+.cm-btn-voted {
+  background: rgba(255,220,80,0.08);
+  border-color: rgba(255,220,80,0.2);
+  color: #a09040;
+}
+
+/* ─── Community map banner (in-game top bar) ─────────────────────────────────── */
+.hud-community-bar {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 16px;
+  background: rgba(20,16,12,0.88);
+  border: 1px solid rgba(210,140,60,0.35);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  font-size: 0.78rem;
+  color: #b0a090;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.hud-community-back {
+  padding: 3px 10px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.07);
+  color: #c8bfb0;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.hud-community-back:hover {
+  background: rgba(255,255,255,0.13);
+}
+
+/* ─── Editor Publish button + modal ─────────────────────────────────────────── */
+.editor-publish-btn {
+  background: rgba(80,160,100,0.18);
+  border: 1px solid rgba(80,200,100,0.35);
+  color: #80d090;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.editor-publish-btn:hover {
+  background: rgba(80,160,100,0.28);
+}
+
+.editor-publish-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-publish-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+}
+
+.editor-publish-dialog {
+  position: relative;
+  width: 380px;
+  background: #1e1a17;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-publish-dialog h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #f0e6d0;
+}
+
+.editor-publish-dialog p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #887c6a;
+}
+
+.editor-publish-status {
+  min-height: 1.2em;
+  font-size: 0.82rem;
+  color: #c07050;
+}
+
+.editor-publish-status.is-success {
+  color: #80c890;
+}

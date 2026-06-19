@@ -12,6 +12,7 @@ import type {
   Vec2,
   Zone,
 } from '../data/mapData';
+import { COMMUNITY_MAPS_ENABLED, publishMap } from '../data/communityMapStore';
 
 const SHAPES: ShapeKind[] = [
   'rect',
@@ -106,6 +107,7 @@ export class MapEditor {
   private placingSpawn = false;
   private statusText = 'Left-drag objects to move them. Right-drag to pan. Mouse wheel zooms.';
   private statusTimer: number | null = null;
+  private publishModal: HTMLDivElement | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -142,6 +144,72 @@ export class MapEditor {
       this.fitView();
       this.render();
     });
+  }
+
+  private openPublishModal(): void {
+    if (this.publishModal) return;
+    const modal = document.createElement('div');
+    modal.className = 'editor-publish-modal';
+    modal.innerHTML = `
+      <div class="editor-publish-backdrop" data-action="close-publish"></div>
+      <div class="editor-publish-dialog">
+        <h2>Publish Map</h2>
+        <p>Share your map with all players. It will appear in the Community Maps browser.</p>
+        <label class="editor-field">
+          <span>Map Title</span>
+          <input id="pub-title" type="text" maxlength="60" placeholder="My Awesome Climb" value="${escapeHtml(this.map.mapName ?? '')}" />
+        </label>
+        <label class="editor-field">
+          <span>Your Name</span>
+          <input id="pub-author" type="text" maxlength="24" placeholder="Climber" />
+        </label>
+        <p id="pub-status" class="editor-publish-status"></p>
+        <div class="editor-panel-actions">
+          <button type="button" class="editor-primary" data-action="confirm-publish">Publish</button>
+          <button type="button" class="editor-secondary" data-action="close-publish">Cancel</button>
+        </div>
+      </div>
+    `;
+    this.container.appendChild(modal);
+    this.publishModal = modal;
+    (modal.querySelector('#pub-title') as HTMLInputElement)?.focus();
+  }
+
+  private closePublishModal(): void {
+    this.publishModal?.remove();
+    this.publishModal = null;
+  }
+
+  private async confirmPublish(): Promise<void> {
+    if (!this.publishModal) return;
+    const titleInput = this.publishModal.querySelector<HTMLInputElement>('#pub-title');
+    const authorInput = this.publishModal.querySelector<HTMLInputElement>('#pub-author');
+    const statusEl = this.publishModal.querySelector<HTMLParagraphElement>('#pub-status');
+    const btn = this.publishModal.querySelector<HTMLButtonElement>('[data-action="confirm-publish"]');
+
+    const title = titleInput?.value.trim() ?? '';
+    const author = authorInput?.value.trim() || 'Anonymous';
+
+    if (!title) {
+      if (statusEl) statusEl.textContent = 'Please enter a map title.';
+      titleInput?.focus();
+      return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Publishing...';
+
+    try {
+      const id = await publishMap(title, author, this.map);
+      if (statusEl) {
+        statusEl.textContent = `Published! Map ID: ${id}`;
+        statusEl.classList.add('is-success');
+      }
+      if (btn) btn.textContent = 'Done';
+    } catch (err) {
+      if (statusEl) statusEl.textContent = `Failed: ${err instanceof Error ? err.message : String(err)}`;
+      if (btn) { btn.disabled = false; }
+    }
   }
 
   dispose(): void {
@@ -189,6 +257,15 @@ export class MapEditor {
         return;
       case 'reset-map':
         this.resetMap();
+        return;
+      case 'open-publish':
+        this.openPublishModal();
+        return;
+      case 'close-publish':
+        this.closePublishModal();
+        return;
+      case 'confirm-publish':
+        void this.confirmPublish();
         return;
       case 'place-spawn':
         this.placingSpawn = !this.placingSpawn;
@@ -432,6 +509,7 @@ export class MapEditor {
         <button type="button" data-action="duplicate-object" ${selected ? '' : 'disabled'}>Duplicate</button>
         <button type="button" data-action="copy-json">Copy JSON</button>
         <button type="button" data-action="reset-map">Reset</button>
+        ${COMMUNITY_MAPS_ENABLED ? '<button type="button" class="editor-publish-btn" data-action="open-publish">Publish</button>' : ''}
         <a href="./" class="editor-play-link">Play</a>
       </div>
     `;

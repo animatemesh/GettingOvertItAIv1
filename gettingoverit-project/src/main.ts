@@ -5,6 +5,7 @@ import './style.css';
 import { Game } from './Game';
 import { MapEditor } from './editor/MapEditor';
 import { canUseMapEditor, stripEditorPath } from './utils/editorAccess';
+import { getActiveCommunityMap, clearActiveCommunityMap } from './data/communityMapStore';
 
 const REDIRECT_STORAGE_KEY = 'climb-of-patience:redirect-path';
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -26,7 +27,12 @@ if (wantsEditor && canUseMapEditor()) {
   if (wantsEditor) {
     window.history.replaceState(null, '', stripEditorPath(window.location.pathname));
   }
-  const game = new Game(app);
+
+  // Check if the user chose to play a community map from the browser.
+  const communityMap = getActiveCommunityMap();
+  if (communityMap) clearActiveCommunityMap();
+
+  const game = new Game(app, communityMap ?? undefined);
   game.start().catch((err) => {
     console.error('Failed to start game:', err);
     const msg = document.createElement('pre');

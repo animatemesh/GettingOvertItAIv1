@@ -21,7 +21,9 @@ import { SlamVfx } from './systems/SlamVfx';
 import { AbilityController } from './systems/AbilityController';
 import { HAMMERS, HAMMER_ORDER, type HammerId } from './data/hammers';
 import { loadProgression, saveProgression, type Progression } from './data/progressionStore';
+import { type CommunityMap, incrementPlayCount } from './data/communityMapStore';
 import { Hud } from './ui/Hud';
+import { CommunityMapsScreen } from './ui/CommunityMapsScreen';
 
 /** Head speed (m/s) at impact that counts as a ground slam. */
 const SLAM_SPEED = 3.5;
@@ -68,10 +70,16 @@ export class Game {
   private finishedTimeMs: number | null = null;
   private scoreSubmittedForRun = false;
 
+  private readonly container: HTMLElement;
+  private readonly communityMap: CommunityMap | undefined;
+  private communityScreen: CommunityMapsScreen | null = null;
+
   private readonly focus = new THREE.Vector2();
   private readonly pivot = new THREE.Vector2();
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, communityMap?: CommunityMap) {
+    this.container = container;
+    this.communityMap = communityMap;
     this.engine = new Engine(container);
     this.hud = new Hud(container, {
       onToggleDebug: () => {
@@ -88,6 +96,7 @@ export class Game {
       onCloseShop: () => this.setShopOpen(false),
       onBuyHammer: (id) => this.buyHammer(id),
       onEquipHammer: (id) => this.equipHammer(id),
+      onOpenCommunityMaps: () => this.openCommunityMaps(),
     }, this.settings);
     this.hud.setScoreboard(
       this.scoreboard.visitCount,
@@ -110,7 +119,11 @@ export class Game {
 
   async start(): Promise<void> {
     await this.engine.initPhysics();
-    this.map = loadEditableMap();
+    this.map = this.communityMap ? this.communityMap.mapData : loadEditableMap();
+    if (this.communityMap) {
+      void incrementPlayCount(this.communityMap.id);
+      this.hud.setCommunityMapBanner(this.communityMap.title, this.communityMap.authorName);
+    }
 
     // Build the level (colliders + meshes) and collect terrain handles.
     const level = new LevelBuilder(this.engine.scene, this.engine.world).build(this.map);
@@ -245,11 +258,16 @@ export class Game {
   private finishRun(): void {
     this.finishedTimeMs = this.elapsedMs;
     this.hud.showWin();
-    const prompt =
-      this.scoreboard.storageMode === 'remote'
-        ? 'Submit your time to the global leaderboard.'
-        : 'Submit your time (saved on this device).';
-    this.hud.setPendingScore(true, prompt, this.finishedTimeMs);
+    if (this.communityMap) {
+      // No highscores on community maps — just celebrate the finish.
+      this.hud.setPendingScore(false, 'Community map completed! Highscores are only tracked on the original map.', null);
+    } else {
+      const prompt =
+        this.scoreboard.storageMode === 'remote'
+          ? 'Submit your time to the global leaderboard.'
+          : 'Submit your time (saved on this device).';
+      this.hud.setPendingScore(true, prompt, this.finishedTimeMs);
+    }
     this.setMenuOpen(true);
   }
 
@@ -315,6 +333,18 @@ export class Game {
     this.shopOpen = open;
     this.hud.setShopOpen(open);
     this.engine.syncClock();
+  }
+
+  private openCommunityMaps(): void {
+    if (this.communityScreen) return;
+    this.setMenuOpen(false);
+    this.running = false;
+    this.communityScreen = new CommunityMapsScreen(this.container, () => {
+      this.communityScreen = null;
+      this.running = true;
+      this.engine.syncClock();
+      requestAnimationFrame(this.frame);
+    });
   }
 
   private onKeyDown = (event: KeyboardEvent): void => {

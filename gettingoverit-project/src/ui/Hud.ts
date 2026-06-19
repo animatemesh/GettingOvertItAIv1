@@ -25,6 +25,7 @@ export interface HudCallbacks {
   onCloseShop: () => void;
   onBuyHammer: (id: HammerId) => void;
   onEquipHammer: (id: HammerId) => void;
+  onOpenCommunityMaps: () => void;
 }
 
 interface ShopState {
@@ -253,6 +254,21 @@ export class Hud {
     this.renderMenu();
   }
 
+  setCommunityMapBanner(title: string, author: string): void {
+    const bar = document.createElement('div');
+    bar.className = 'hud-community-bar';
+    bar.innerHTML = `
+      <span>Playing: <strong>${escapeHtml(title)}</strong> by ${escapeHtml(author)}</span>
+      <button type="button" class="hud-community-back" data-action="return-original">Return to Original Map</button>
+    `;
+    bar.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('[data-action="return-original"]')) {
+        window.location.reload();
+      }
+    });
+    this.root.appendChild(bar);
+  }
+
   private makeButton(className: string, text: string, action: string): HTMLButtonElement {
     const button = document.createElement('button');
     button.className = className;
@@ -286,6 +302,9 @@ export class Hud {
         return;
       case 'submit-score':
         this.callbacks.onSubmitScore();
+        return;
+      case 'open-community-maps':
+        this.callbacks.onOpenCommunityMaps();
         return;
       case 'toggle-shop':
         this.callbacks.onToggleShop();
@@ -377,6 +396,7 @@ export class Hud {
             </div>
             <div class="hud-menu-actions">
               <button type="button" class="hud-menu-button hud-menu-button-primary" data-action="reset-run">Reset Run</button>
+              <button type="button" class="hud-menu-button" data-action="open-community-maps">Community Maps</button>
               ${editorEnabled ? '<a href="./editor" class="hud-menu-link">Open Editor</a>' : ''}
             </div>
             <label class="hud-menu-field">
